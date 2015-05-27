@@ -43,7 +43,8 @@ public class MainWindow extends JPanel {
 						time += timeEnded - timeStarted;
 						text += textField.getText();
 						textArea.append(time / 1000000000.0 + newline);
-						textArea.append(text + newline);
+						text+=" ";
+						textArea.append(text+ newline);
 						textField.selectAll();
 
 						// Make sure the new text is visible, even if there
@@ -77,15 +78,23 @@ public class MainWindow extends JPanel {
 		c.fill = GridBagConstraints.BOTH;
 		c.weightx = 1.0;
 		c.weighty = 1.0;
-		add(startButton, c);
+		JScrollPane scrollPane = new JScrollPane(textArea);
+		textArea.setEditable(true);
+		textArea.setText("Enter the text for the test.");
+		textArea.selectAll();
+		add(scrollPane,c);
+		add(startButton, c);	
+		
 		startButton.addActionListener(new ActionListener() {
 
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				JScrollPane scrollPane = new JScrollPane(textArea);
+				
 
 				// Add Components to this panel.
 				startButton.setVisible(false);
+				textArea.setText(null);
+				textArea.setEditable(false);
 				JButton finnish = new JButton("finish");
 				finnish.addActionListener(new ActionListener() {
 
@@ -124,9 +133,10 @@ public class MainWindow extends JPanel {
 					}
 				});
 
-				MainWindow.this.add(finnish, c);
+				
 				MainWindow.this.add(textField, c);
 				MainWindow.this.add(scrollPane, c);
+				MainWindow.this.add(finnish, c);
 				MainWindow.this.refreshFrame(true);
 				textField.requestFocus();
 			}
@@ -146,10 +156,11 @@ public class MainWindow extends JPanel {
 		frame.setLocation(dim.width / 2 - frame.getSize().width / 2, dim.height
 				/ 2 - frame.getSize().height / 2);
 		// Add contents to the window.
-		frame.add(new MainWindow());
+		MainWindow window = new MainWindow();
+		frame.add(window);
+		window.refreshFrame(true);
 
 		// Display the window.
-		frame.pack();
 		frame.setVisible(true);
 	}
 
