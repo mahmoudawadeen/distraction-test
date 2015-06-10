@@ -330,6 +330,15 @@ public class MainWindow extends JPanel {
 				createAndShowGUI();
 			}
 		});
+//		HashMap<Boolean, ArrayList<String>> test = new HashMap<>();
+//		test.put(true, new ArrayList<>());
+//		test.get(true).add("hey");
+//		test.get(true).add("hey2");
+//		test.get(true).add("hey3");
+//		for(String x : test.get(true)){
+//			test.get(true).remove(x);
+//		}
+//		System.out.println(test.get(true).size());
 
 	}
 
@@ -343,6 +352,7 @@ public class MainWindow extends JPanel {
 
 	public void compareLogs() {
 		try {
+			int correct=0;
 			HashMap<Boolean, ArrayList<String>> timings = new HashMap<>();
 			BufferedReader log = new BufferedReader(new FileReader(file));
 			log.close();
@@ -352,15 +362,18 @@ public class MainWindow extends JPanel {
 			timings.put(false, new ArrayList<String>());
 			while (glassLog.ready()) {
 				String line = glassLog.readLine();
-				timings.get(line.charAt(0) == 'o').add(line.split(" ")[2]);
+				timings.get(line.charAt(0) == 'o').add(line);
 			}
 			glassLog.close();
 			while (log.ready()) {
 				String line = log.readLine();
-				if (line.charAt(0) == 'o') {
-					boolean found = false;
-					while (!found) {
-						
+				boolean found = false;
+				while (!found) {
+					for (String time : timings.get(line.charAt(0) == 'o')) {
+						if(getDifference(line, time)<=5499){
+							correct++;
+							timings.remove(time);
+						}
 					}
 				}
 			}
