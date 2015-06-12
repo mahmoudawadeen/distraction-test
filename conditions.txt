@@ -1,0 +1,27 @@
+Conditions
+1. double icons, change instantly
+2. double icons, blendin/out
+3. double icons, change on blink with change instant on timeout
+
+
+
+/////////////////////////
+double icon
+first icon - current state
+second icon - thumbs up/down
+
+/////////////////////////
+single icon
+icon - current state
+color - good/bad
+
+///////////////////////////
+target icon
+icon - what user has to do
+
+
+
+-------------------
+9 conditions, > 10 persons, german
+-------------------
+make logs automated with date and user id 

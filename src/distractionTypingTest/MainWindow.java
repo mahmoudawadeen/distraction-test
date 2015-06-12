@@ -64,6 +64,11 @@ public class MainWindow extends JPanel {
 
 	private final static String newline = "\n";
 
+	private static int correct;
+	private static long delay;
+	private static int totalLogLines;
+	private static int totalGlassLogLines;
+
 	public MainWindow() {
 		super(new GridBagLayout());
 		file = new File("log.txt");
@@ -206,16 +211,29 @@ public class MainWindow extends JPanel {
 
 							textArea.setFont(textArea.getFont().deriveFont(35));
 							time /= 1000000000.0;
+							compareLogs();
 							textArea.setText(((time == 0 || text.length() == 0) ? "zero"
 									: ((text.length() * 1.0) / time) + "")
 									+ " characters per second"
 									+ newline
 									+ "the two strings are "
 									+ StringUtils.getJaroWinklerDistance(text,
-											originalText) + "% similar");
+											originalText)
+									+ "% similar"
+									+ newline
+									+ "the total number of lines in glass log is: "
+									+ totalGlassLogLines
+									+ newline
+									+ "the total delay is: "
+									+ delay
+									+ newline
+									+ "the total number of correct caps lock hits is: "
+									+ correct
+									+ newline
+									+ "the total number of lines in log is: "
+									+ totalLogLines);
 							finish.setText("restart");
 							scrollPane.getVerticalScrollBar().setValue(0);
-							compareLogs();
 							refreshFrame(false);
 
 						} else {
@@ -330,16 +348,15 @@ public class MainWindow extends JPanel {
 				createAndShowGUI();
 			}
 		});
-//		HashMap<Boolean, ArrayList<String>> test = new HashMap<>();
-//		test.put(true, new ArrayList<>());
-//		test.get(true).add("hey");
-//		test.get(true).add("hey2");
-//		test.get(true).add("hey3");
-//		for(String x : test.get(true)){
-//			test.get(true).remove(x);
-//		}
-//		System.out.println(test.get(true).size());
-
+		// HashMap<Boolean, ArrayList<String>> test = new HashMap<>();
+		// test.put(true, new ArrayList<>());
+		// test.get(true).add("hey");
+		// test.get(true).add("hey2");
+		// test.get(true).add("hey3");
+		// for(String x : test.get(true)){
+		// test.get(true).remove(x);
+		// }
+		// System.out.println(test.get(true).size());
 	}
 
 	public void setStartSignalAck(boolean startSignalAck) {
@@ -350,33 +367,37 @@ public class MainWindow extends JPanel {
 		finish.doClick();
 	}
 
-	public void compareLogs() {
+	public static void compareLogs() {
 		try {
-			int correct=0;
+
 			HashMap<Boolean, ArrayList<String>> timings = new HashMap<>();
-			BufferedReader log = new BufferedReader(new FileReader(file));
-			log.close();
+			BufferedReader log = new BufferedReader(new FileReader("log.txt"));
 			BufferedReader glassLog = new BufferedReader(new FileReader(
-					art.getLog()));
+					"log_glass.txt"));
 			timings.put(true, new ArrayList<String>());
 			timings.put(false, new ArrayList<String>());
 			while (glassLog.ready()) {
 				String line = glassLog.readLine();
 				timings.get(line.charAt(0) == 'o').add(line);
+				totalGlassLogLines++;
 			}
 			glassLog.close();
 			while (log.ready()) {
 				String line = log.readLine();
-				boolean found = false;
-				while (!found) {
-					for (String time : timings.get(line.charAt(0) == 'o')) {
-						if(getDifference(line, time)<=5499){
-							correct++;
-							timings.remove(time);
-						}
+				ArrayList<String> timing = timings.get(line.charAt(0) == 'o');
+				int size = timing.size();
+				for (int i = 0; i < size; i++) {
+					if (getDifference(line, timing.get(i)) >= 0
+							&& getDifference(line, timing.get(i)) <= 5499) {
+						correct++;
+						delay += (getDifference(line, timing.get(i)));
+						timings.remove((timing.get(i)));
+						break;
 					}
 				}
+				totalLogLines++;
 			}
+			log.close();
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

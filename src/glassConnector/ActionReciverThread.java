@@ -48,13 +48,12 @@ public class ActionReciverThread extends Thread {
 					break;
 				case "time finished":
 					socket.close();
-					System.out.println("socket closed");
+
 					return;
 				default:
 					fw.write(message + " at " + LocalTime.now() + newline);
 					fw.flush();
-					System.out.println(new String(dgp.getData(), 0, dgp
-							.getLength()) + " at " + LocalTime.now());
+//					System.out.println(message+ " at " + LocalTime.now());
 					break;
 				}
 			}
