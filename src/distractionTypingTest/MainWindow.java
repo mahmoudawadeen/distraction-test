@@ -26,6 +26,7 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.sql.Time;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.Executors;
@@ -37,6 +38,7 @@ import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
 import org.apache.commons.lang3.StringUtils;
@@ -48,11 +50,11 @@ public class MainWindow extends JPanel {
 	protected JTextArea inputTextArea;
 	protected JTextArea outputTextArea;
 	protected JButton finish;
-
 	protected JScrollPane scrollPane;
 	protected JScrollPane scrollPaneText;
 	protected GridBagConstraints c;
 	protected JButton startButton;
+	protected JTextField idTextField;
 
 	private boolean timerStarted;
 
@@ -77,19 +79,11 @@ public class MainWindow extends JPanel {
 
 	public MainWindow() {
 		super(new GridBagLayout());
-		file = new File("log.txt");
 		caps = Toolkit.getDefaultToolkit().getLockingKeyState(
 				KeyEvent.VK_CAPS_LOCK);
-		try {
-			art = new ActionReciverThread(this);
-			ScheduledExecutorService exec = Executors.newScheduledThreadPool(1);
-			exec.scheduleAtFixedRate(new capsLockRunnable(), 0, 500,
-					TimeUnit.MILLISECONDS);
-		} catch (IOException e1) {
-
-			e1.printStackTrace();
-		}
-		art.start();
+		ScheduledExecutorService exec = Executors.newScheduledThreadPool(1);
+		exec.scheduleAtFixedRate(new capsLockRunnable(), 0, 500,
+				TimeUnit.MILLISECONDS);
 		inputTextArea = new JTextArea(20, 40);
 		inputTextArea.setLineWrap(true);
 		inputTextArea.setWrapStyleWord(true);
@@ -110,6 +104,9 @@ public class MainWindow extends JPanel {
 		outputTextArea.setEditable(true);
 		outputTextArea.setText("Enter the text for the test.");
 		outputTextArea.selectAll();
+		idTextField = new JTextField("Enter user id");
+		idTextField.selectAll();
+		add(idTextField, c);
 		add(scrollPane, c);
 		add(startButton, c);
 		startButton.addActionListener(new startButtonActionListener());
@@ -305,6 +302,21 @@ public class MainWindow extends JPanel {
 		public void actionPerformed(ActionEvent e) {
 
 			// Add Components to this panel.
+			String dateTime = LocalDateTime.now().toString();
+			dateTime = dateTime.replace('T', ' ')
+					.substring(0, dateTime.indexOf('.')).replace(':', '.');
+			file = new File("logs/" + idTextField.getText() + "/" + dateTime
+					+ "/log.txt");
+			if (!(file.getParentFile().exists())) {
+				file.getParentFile().mkdirs();
+			}
+			try {
+				art = new ActionReciverThread(MainWindow.this,idTextField.getText());
+				art.start();
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
 			originalText = outputTextArea.getText();
 			startButton.setVisible(false);
 			outputTextArea.setText(null);

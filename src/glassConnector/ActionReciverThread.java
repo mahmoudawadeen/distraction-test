@@ -7,6 +7,8 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
+import java.time.LocalDateTime;
+
 import org.joda.time.LocalTime;
 
 import distractionTypingTest.MainWindow;
@@ -23,12 +25,19 @@ public class ActionReciverThread extends Thread {
 
 	boolean socketOpened;
 
-	public ActionReciverThread(MainWindow window) throws IOException {
+	public ActionReciverThread(MainWindow window,String id) throws IOException {
 		socket = new DatagramSocket(null);
 		socket.setReuseAddress(true);
 		socket.bind(new InetSocketAddress("0.0.0.0",PORT));
 		this.window = window;
 		socketOpened = true;
+		String dateTime = LocalDateTime.now().toString();
+		dateTime = dateTime.replace('T', ' ')
+				.substring(0, dateTime.indexOf('.')).replace(':', '.');
+		file = new File("logs/" + id + "/" + dateTime+"/log_glass.txt");
+		if(!(file.getParentFile().exists())){
+			file.getParentFile().mkdirs();
+		}
 	}
 
 	public void run() {
@@ -37,7 +46,6 @@ public class ActionReciverThread extends Thread {
 
 		DatagramPacket dgp = new DatagramPacket(buf, buf.length);
 		try {
-			file = new File("log_glass.txt");
 			fw = new FileWriter(file, true);
 			while (true) {
 				socket.receive(dgp);
