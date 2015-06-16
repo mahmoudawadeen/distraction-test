@@ -12,8 +12,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.awt.event.WindowListener;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -26,7 +26,9 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.sql.Time;
-import java.time.LocalTime;
+
+import org.joda.time.LocalTime;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.Executors;
@@ -45,9 +47,15 @@ import org.apache.commons.lang3.StringUtils;
 public class MainWindow extends JPanel {
 
 	private static final long serialVersionUID = -4434843170363458281L;
-	protected JTextArea textField;
-	protected JTextArea textArea;
+	protected JTextArea inputTextArea;
+	protected JTextArea outputTextArea;
 	protected JButton finish;
+
+	protected JScrollPane scrollPane;
+	protected JScrollPane scrollPaneText;
+	protected GridBagConstraints c;
+	protected JButton startButton;
+
 	private boolean timerStarted;
 
 	private double timeStarted;
@@ -76,182 +84,37 @@ public class MainWindow extends JPanel {
 				KeyEvent.VK_CAPS_LOCK);
 		try {
 			art = new ActionReciverThread(this);
-			Runnable capslock = new Runnable() {
-				@Override
-				public void run() {
-					FileWriter fw;
-					try {
-						if (caps != Toolkit.getDefaultToolkit()
-								.getLockingKeyState(KeyEvent.VK_CAPS_LOCK)) {
-							fw = new FileWriter(file, true);
-							fw.write(((Toolkit.getDefaultToolkit()
-									.getLockingKeyState(KeyEvent.VK_CAPS_LOCK)) ? "on"
-									: "off")
-									+ " at " + LocalTime.now() + newline);
-							caps = !caps;
-							fw.close();
-						}
-					} catch (IOException e) {
-
-						e.printStackTrace();
-					}
-				}
-			};
 			ScheduledExecutorService exec = Executors.newScheduledThreadPool(1);
-			exec.scheduleAtFixedRate(capslock, 0, 500, TimeUnit.MILLISECONDS);
+			exec.scheduleAtFixedRate(new capsLockRunnable(), 0, 500,
+					TimeUnit.MILLISECONDS);
 		} catch (IOException e1) {
 
 			e1.printStackTrace();
 		}
 		art.start();
-		textField = new JTextArea(20, 40);
-		textField.setLineWrap(true);
-		textField.setWrapStyleWord(true);
-		textField.addKeyListener(new KeyListener() {
-
-			@Override
-			public void keyTyped(KeyEvent e) {
-				if (!startSignalAck) {
-					try {
-						byte buf[] = "start".getBytes();
-						DatagramSocket startSignalSocket = new DatagramSocket();
-						InetAddress hostAddress = InetAddress
-								.getByName("137.250.171.64");
-						DatagramPacket startSignalPacket = new DatagramPacket(
-								buf, buf.length, hostAddress, 34144);
-						startSignalSocket.send(startSignalPacket);
-						System.out.println("start sent");
-						startSignalSocket.close();
-
-					} catch (SocketException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					} catch (UnknownHostException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					} catch (IOException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					}
-				}
-				if (e.getKeyChar() != KeyEvent.VK_ENTER) {
-					if (!timerStarted) {
-						timerStarted = true;
-						timeStarted = System.nanoTime();
-					}
-				} else {
-					if (timerStarted) {
-						timerStarted = false;
-						timeEnded = System.nanoTime();
-						time += timeEnded - timeStarted;
-						text += textField.getText();
-						// textArea.append(time / 1000000000.0 + newline);
-						// text += " ";
-						// textArea.append(text);
-						textArea.setText(text);
-						textField.selectAll();
-
-						// Make sure the new text is visible, even if there
-						// was a selection in the text area.
-						textArea.setCaretPosition(textArea.getDocument()
-								.getLength());
-					}
-				}
-			}
-
-			@Override
-			public void keyPressed(KeyEvent e) {
-			}
-
-			@Override
-			public void keyReleased(KeyEvent e) {
-			}
-		});
-		textArea = new JTextArea(20, 20);
-		textArea.setLineWrap(true);
-		textArea.setWrapStyleWord(true);
-		final JButton startButton = new JButton();
+		inputTextArea = new JTextArea(20, 40);
+		inputTextArea.setLineWrap(true);
+		inputTextArea.setWrapStyleWord(true);
+		inputTextArea.addKeyListener(new textFieldKeyListener());
+		outputTextArea = new JTextArea(20, 20);
+		outputTextArea.setLineWrap(true);
+		outputTextArea.setWrapStyleWord(true);
+		startButton = new JButton();
 		startButton.setText("Start Test");
-		final GridBagConstraints c = new GridBagConstraints();
+		c = new GridBagConstraints();
 		c.gridwidth = GridBagConstraints.REMAINDER;
-
 		c.fill = GridBagConstraints.HORIZONTAL;
 		c.fill = GridBagConstraints.BOTH;
 		c.weightx = 1.0;
 		c.weighty = 1.0;
-		JScrollPane scrollPane = new JScrollPane(textArea);
-		JScrollPane scrollPaneText = new JScrollPane(textField);
-		textArea.setEditable(true);
-		textArea.setText("Enter the text for the test.");
-		textArea.selectAll();
+		scrollPane = new JScrollPane(outputTextArea);
+		scrollPaneText = new JScrollPane(inputTextArea);
+		outputTextArea.setEditable(true);
+		outputTextArea.setText("Enter the text for the test.");
+		outputTextArea.selectAll();
 		add(scrollPane, c);
 		add(startButton, c);
-
-		startButton.addActionListener(new ActionListener() {
-
-			@Override
-			public void actionPerformed(ActionEvent e) {
-
-				// Add Components to this panel.
-				originalText = textArea.getText();
-				startButton.setVisible(false);
-				textArea.setText(null);
-				textArea.setEditable(false);
-				finish = new JButton("finish");
-				finish.addActionListener(new ActionListener() {
-
-					@Override
-					public void actionPerformed(ActionEvent e) {
-						art.closeSocket();
-						JFrame topFrame = (JFrame) SwingUtilities
-								.getWindowAncestor(MainWindow.this);
-						if (((JButton) e.getSource()).getText()
-								.equals("finish")) {
-							textField.setEditable(false);
-
-							textArea.setFont(textArea.getFont().deriveFont(35));
-							time /= 1000000000.0;
-							compareLogs();
-							textArea.setText(((time == 0 || text.length() == 0) ? "zero"
-									: ((text.length() * 1.0) / time) + "")
-									+ " characters per second"
-									+ newline
-									+ "the two strings are "
-									+ StringUtils.getJaroWinklerDistance(text,
-											originalText)
-									+ "% similar"
-									+ newline
-									+ "the total number of lines in glass log is: "
-									+ totalGlassLogLines
-									+ newline
-									+ "the total delay is: "
-									+ delay
-									+ newline
-									+ "the total number of correct caps lock hits is: "
-									+ correct
-									+ newline
-									+ "the total number of lines in log is: "
-									+ totalLogLines);
-							finish.setText("restart");
-							scrollPane.getVerticalScrollBar().setValue(0);
-							refreshFrame(false);
-
-						} else {
-							String[] args = new String[0];
-							topFrame.dispose();
-							main(args);
-						}
-
-					}
-				});
-				MainWindow.this.removeAll();
-				MainWindow.this.add(scrollPaneText, c);
-				MainWindow.this.add(scrollPane, c);
-				MainWindow.this.add(finish, c);
-				MainWindow.this.refreshFrame(true);
-				textField.requestFocus();
-			}
-		});
+		startButton.addActionListener(new startButtonActionListener());
 
 	}
 
@@ -271,44 +134,7 @@ public class MainWindow extends JPanel {
 
 		MainWindow window = new MainWindow();
 		frame.add(window);
-		frame.addWindowListener(new WindowListener() {
-
-			@Override
-			public void windowOpened(WindowEvent e) {
-				// TODO Auto-generated method stub
-
-			}
-
-			@Override
-			public void windowIconified(WindowEvent e) {
-				// TODO Auto-generated method stub
-
-			}
-
-			@Override
-			public void windowDeiconified(WindowEvent e) {
-				// TODO Auto-generated method stub
-
-			}
-
-			@Override
-			public void windowDeactivated(WindowEvent e) {
-				// TODO Auto-generated method stub
-
-			}
-
-			@Override
-			public void windowClosing(WindowEvent e) {
-				// TODO Auto-generated method stub
-
-			}
-
-			@Override
-			public void windowClosed(WindowEvent e) {
-				// TODO Auto-generated method stub
-
-			}
-
+		frame.addWindowListener(new WindowAdapter() {
 			@Override
 			public void windowActivated(WindowEvent e) {
 				Robot robot;
@@ -362,9 +188,18 @@ public class MainWindow extends JPanel {
 	public void setStartSignalAck(boolean startSignalAck) {
 		this.startSignalAck = startSignalAck;
 	}
+	@SuppressWarnings("deprecation")
+	public static long getDifference(String first, String second) {
+		String[] firstSplitted = first.split(" ")[2].split(":");
+		String[] secondSplitted = second.split(" ")[2].split(":");
+		Time t1 = new Time(Integer.parseInt(firstSplitted[0]),
+				Integer.parseInt(firstSplitted[1]),
+				(int) Double.parseDouble(firstSplitted[2]));
+		Time t2 = new Time(Integer.parseInt(secondSplitted[0]),
+				Integer.parseInt(secondSplitted[1]),
+				(int) Double.parseDouble(secondSplitted[2]));
+		return t1.getTime() - t2.getTime();
 
-	public void done() {
-		finish.doClick();
 	}
 
 	public static void compareLogs() {
@@ -407,17 +242,148 @@ public class MainWindow extends JPanel {
 		}
 	}
 
-	@SuppressWarnings("deprecation")
-	public static long getDifference(String first, String second) {
-		String[] firstSplitted = first.split(" ")[2].split(":");
-		String[] secondSplitted = second.split(" ")[2].split(":");
-		Time t1 = new Time(Integer.parseInt(firstSplitted[0]),
-				Integer.parseInt(firstSplitted[1]),
-				(int) Double.parseDouble(firstSplitted[2]));
-		Time t2 = new Time(Integer.parseInt(secondSplitted[0]),
-				Integer.parseInt(secondSplitted[1]),
-				(int) Double.parseDouble(secondSplitted[2]));
-		return t1.getTime() - t2.getTime();
+	class textFieldKeyListener implements KeyListener {
+		@Override
+		public void keyTyped(KeyEvent e) {
+			if (!startSignalAck) {
+				try {
+					byte buf[] = "start".getBytes();
+					DatagramSocket startSignalSocket = new DatagramSocket();
+					InetAddress hostAddress = InetAddress
+							.getByName("137.250.171.64");
+					DatagramPacket startSignalPacket = new DatagramPacket(buf,
+							buf.length, hostAddress, 34144);
+					startSignalSocket.send(startSignalPacket);
+					System.out.println("start sent");
+					startSignalSocket.close();
 
+				} catch (SocketException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				} catch (UnknownHostException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}
+			if (e.getKeyChar() != KeyEvent.VK_ENTER) {
+				if (!timerStarted) {
+					timerStarted = true;
+					timeStarted = System.nanoTime();
+				}
+			} else {
+				if (timerStarted) {
+					timerStarted = false;
+					timeEnded = System.nanoTime();
+					time += timeEnded - timeStarted;
+					text += inputTextArea.getText();
+					// textArea.append(time / 1000000000.0 + newline);
+					// text += " ";
+					// textArea.append(text);
+					outputTextArea.setText(text);
+					inputTextArea.selectAll();
+
+					// Make sure the new text is visible, even if there
+					// was a selection in the text area.
+					outputTextArea.setCaretPosition(outputTextArea.getDocument()
+							.getLength());
+				}
+			}
+		}
+
+		@Override
+		public void keyPressed(KeyEvent e) {
+		}
+
+		@Override
+		public void keyReleased(KeyEvent e) {
+		}
+
+	}
+
+	class capsLockRunnable implements Runnable {
+		public void run() {
+			FileWriter fw;
+			try {
+				if (caps != Toolkit.getDefaultToolkit().getLockingKeyState(
+						KeyEvent.VK_CAPS_LOCK)) {
+					fw = new FileWriter(file, true);
+					fw.write(((Toolkit.getDefaultToolkit()
+							.getLockingKeyState(KeyEvent.VK_CAPS_LOCK)) ? "on"
+							: "off")
+							+ " at " + LocalTime.now() + newline);
+					caps = !caps;
+					fw.close();
+				}
+			} catch (IOException e) {
+
+				e.printStackTrace();
+			}
+		}
+	}
+
+	class startButtonActionListener implements ActionListener {
+		public void actionPerformed(ActionEvent e) {
+
+			// Add Components to this panel.
+			originalText = outputTextArea.getText();
+			startButton.setVisible(false);
+			outputTextArea.setText(null);
+			outputTextArea.setEditable(false);
+			finish = new JButton("finish");
+			finish.addActionListener(new finnishButtonActionListner());
+			MainWindow.this.removeAll();
+			MainWindow.this.add(scrollPaneText, c);
+			MainWindow.this.add(scrollPane, c);
+			MainWindow.this.add(finish, c);
+			MainWindow.this.refreshFrame(true);
+			inputTextArea.requestFocus();
+		}
+	}
+	class finnishButtonActionListner implements ActionListener{
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			art.closeSocket();
+			JFrame topFrame = (JFrame) SwingUtilities
+					.getWindowAncestor(MainWindow.this);
+			if (((JButton) e.getSource()).getText().equals("finish")) {
+				inputTextArea.setEditable(false);
+
+				outputTextArea.setFont(outputTextArea.getFont().deriveFont(35));
+				time /= 1000000000.0;
+				compareLogs();
+				outputTextArea.setText(((time == 0 || text.length() == 0) ? "zero"
+						: ((text.length() * 1.0) / time) + "")
+						+ " characters per second"
+						+ newline
+						+ "the two strings are "
+						+ StringUtils.getJaroWinklerDistance(text,
+								originalText)
+						+ "% similar"
+						+ newline
+						+ "the total number of lines in glass log is: "
+						+ totalGlassLogLines
+						+ newline
+						+ "the total delay is: "
+						+ delay
+						+ newline
+						+ "the total number of correct caps lock hits is: "
+						+ correct
+						+ newline
+						+ "the total number of lines in log is: "
+						+ totalLogLines);
+				finish.setText("restart");
+				scrollPane.getVerticalScrollBar().setValue(0);
+				refreshFrame(false);
+
+			} else {
+				String[] args = new String[0];
+				topFrame.dispose();
+				main(args);
+			}
+
+		}
 	}
 }
