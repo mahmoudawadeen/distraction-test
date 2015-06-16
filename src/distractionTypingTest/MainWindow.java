@@ -26,9 +26,6 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.sql.Time;
-
-import org.joda.time.LocalTime;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.Executors;
@@ -43,6 +40,7 @@ import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 
 import org.apache.commons.lang3.StringUtils;
+import org.joda.time.LocalTime;
 
 public class MainWindow extends JPanel {
 
@@ -188,6 +186,7 @@ public class MainWindow extends JPanel {
 	public void setStartSignalAck(boolean startSignalAck) {
 		this.startSignalAck = startSignalAck;
 	}
+
 	@SuppressWarnings("deprecation")
 	public static long getDifference(String first, String second) {
 		String[] firstSplitted = first.split(" ")[2].split(":");
@@ -245,29 +244,7 @@ public class MainWindow extends JPanel {
 	class textFieldKeyListener implements KeyListener {
 		@Override
 		public void keyTyped(KeyEvent e) {
-			if (!startSignalAck) {
-				try {
-					byte buf[] = "start".getBytes();
-					DatagramSocket startSignalSocket = new DatagramSocket();
-					InetAddress hostAddress = InetAddress
-							.getByName("137.250.171.64");
-					DatagramPacket startSignalPacket = new DatagramPacket(buf,
-							buf.length, hostAddress, 34144);
-					startSignalSocket.send(startSignalPacket);
-					System.out.println("start sent");
-					startSignalSocket.close();
-
-				} catch (SocketException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				} catch (UnknownHostException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				} catch (IOException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				}
-			}
+			new Thread(new startSignalThread()).start();
 			if (e.getKeyChar() != KeyEvent.VK_ENTER) {
 				if (!timerStarted) {
 					timerStarted = true;
@@ -287,8 +264,8 @@ public class MainWindow extends JPanel {
 
 					// Make sure the new text is visible, even if there
 					// was a selection in the text area.
-					outputTextArea.setCaretPosition(outputTextArea.getDocument()
-							.getLength());
+					outputTextArea.setCaretPosition(outputTextArea
+							.getDocument().getLength());
 				}
 			}
 		}
@@ -342,7 +319,38 @@ public class MainWindow extends JPanel {
 			inputTextArea.requestFocus();
 		}
 	}
-	class finnishButtonActionListner implements ActionListener{
+
+	class startSignalThread implements Runnable {
+
+		@Override
+		public void run() {
+			if (!startSignalAck) {
+				try {
+					byte buf[] = "start".getBytes();
+					DatagramSocket startSignalSocket = new DatagramSocket();
+					InetAddress hostAddress = InetAddress
+							.getByName("137.250.171.64");
+					DatagramPacket startSignalPacket = new DatagramPacket(buf,
+							buf.length, hostAddress, 34144);
+					System.out.println("start sent");
+					startSignalSocket.send(startSignalPacket);
+					startSignalSocket.close();
+				} catch (SocketException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				} catch (UnknownHostException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}
+		}
+
+	}
+
+	class finnishButtonActionListner implements ActionListener {
 		@Override
 		public void actionPerformed(ActionEvent e) {
 			art.closeSocket();
@@ -354,26 +362,27 @@ public class MainWindow extends JPanel {
 				outputTextArea.setFont(outputTextArea.getFont().deriveFont(35));
 				time /= 1000000000.0;
 				compareLogs();
-				outputTextArea.setText(((time == 0 || text.length() == 0) ? "zero"
-						: ((text.length() * 1.0) / time) + "")
-						+ " characters per second"
-						+ newline
-						+ "the two strings are "
-						+ StringUtils.getJaroWinklerDistance(text,
-								originalText)
-						+ "% similar"
-						+ newline
-						+ "the total number of lines in glass log is: "
-						+ totalGlassLogLines
-						+ newline
-						+ "the total delay is: "
-						+ delay
-						+ newline
-						+ "the total number of correct caps lock hits is: "
-						+ correct
-						+ newline
-						+ "the total number of lines in log is: "
-						+ totalLogLines);
+				outputTextArea
+						.setText(((time == 0 || text.length() == 0) ? "zero"
+								: ((text.length() * 1.0) / time) + "")
+								+ " characters per second"
+								+ newline
+								+ "the two strings are "
+								+ StringUtils.getJaroWinklerDistance(text,
+										originalText)
+								+ "% similar"
+								+ newline
+								+ "the total number of lines in glass log is: "
+								+ totalGlassLogLines
+								+ newline
+								+ "the total delay is: "
+								+ delay
+								+ newline
+								+ "the total number of correct caps lock hits is: "
+								+ correct
+								+ newline
+								+ "the total number of lines in log is: "
+								+ totalLogLines);
 				finish.setText("restart");
 				scrollPane.getVerticalScrollBar().setValue(0);
 				refreshFrame(false);
