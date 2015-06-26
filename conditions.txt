@@ -1,27 +1,26 @@
 Conditions
-1. double icons, change instantly
-2. double icons, blendin/out
-3. double icons, change on blink with change instant on timeout
-
-
-
-/////////////////////////
+1. double icons, always on, white icon + thumbs
+2. single icons, always on, colored icon
+3. single icons, fade in/out, white icon
+4. control, no glass
+/////////////////////////////////////////////////////////////////////
+conditions rules:
+recruitment will be in pairs, two persons will switch roles between interviewer and interviewee. every pair will discuss 4 different topics for every condition(the topic will be randomly assigned for every condition). for every topic *for example* 10 different important things will be chosen(5 for each person which gives us 40 important things per pair). the interviewer will ask the interviewee some questions in the chosen topic. In these scenarios the interviewee has to mention 5 important things with the same number of words(will be given to him at the start)while with the google glass the important things will be replaced with capslock signals on the glass display.
+-same pair for all 4 different conditions
+-same number of important things for the 4 different scenarios
+-same number of words for each important things
+-same 4 topics for every pair
+-fixed number of important things between the 4 conditions
+-every pair does all 4 conditions in random order interchangeably
+/////////////////////////////////////////////////////////////////////
 double icon
 first icon - current state
 second icon - thumbs up/down
-
-/////////////////////////
-single icon
+/////////////////////////////////////////////////////////////////////
+single icon, always on
 icon - current state
 color - good/bad
-
-///////////////////////////
-target icon
-icon - what user has to do
-
-
-
--------------------
-9 conditions, > 10 persons, german
--------------------
-make logs automated with date and user id 
+/////////////////////////////////////////////////////////////////////
+single icon, fade in/out
+icon is only shwoing when the state is bad
+/////////////////////////////////////////////////////////////////////

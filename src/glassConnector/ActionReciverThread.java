@@ -41,17 +41,17 @@ public class ActionReciverThread extends Thread {
 	}
 
 	public void run() {
-
 		byte[] buf = new byte[1000];
 
 		DatagramPacket dgp = new DatagramPacket(buf, buf.length);
 		try {
 			fw = new FileWriter(file, true);
-			while (true) {
+			while (open) {
 				socket.receive(dgp);
 				message = new String(dgp.getData(), 0, dgp.getLength());
 				switch (message) {
 				case "received":
+					System.out.println("done");
 					window.setStartSignalAck(true);
 					break;
 				case "time finished":
@@ -59,9 +59,9 @@ public class ActionReciverThread extends Thread {
 
 					return;
 				default:
+					window.setCaps_glass(message.equals("on"));
 					fw.write(message + " at " + LocalTime.now() + newline);
 					fw.flush();
-//					System.out.println(message+ " at " + LocalTime.now());
 					break;
 				}
 			}
@@ -76,6 +76,7 @@ public class ActionReciverThread extends Thread {
 
 	public void closeSocket() {
 		message = "time finished";
+		open=false;
 	}
 	public File getLog(){
 		return file;

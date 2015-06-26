@@ -65,10 +65,14 @@ public class MainWindow extends JPanel {
 	private String text = "";
 	private String originalText = "";
 
-	private File file;
+	private static File file;
+	private static File file_glass;
 	private boolean caps;
 	private ActionReciverThread art;
 	private boolean startSignalAck;
+
+	private boolean feedbackStarted;
+	private boolean caps_glass;
 
 	private final static String newline = "\n";
 
@@ -81,9 +85,6 @@ public class MainWindow extends JPanel {
 		super(new GridBagLayout());
 		caps = Toolkit.getDefaultToolkit().getLockingKeyState(
 				KeyEvent.VK_CAPS_LOCK);
-		ScheduledExecutorService exec = Executors.newScheduledThreadPool(1);
-		exec.scheduleAtFixedRate(new capsLockRunnable(), 0, 500,
-				TimeUnit.MILLISECONDS);
 		inputTextArea = new JTextArea(20, 40);
 		inputTextArea.setLineWrap(true);
 		inputTextArea.setWrapStyleWord(true);
@@ -200,35 +201,40 @@ public class MainWindow extends JPanel {
 
 	public static void compareLogs() {
 		try {
-
 			HashMap<Boolean, ArrayList<String>> timings = new HashMap<>();
-			BufferedReader log = new BufferedReader(new FileReader("log.txt"));
-			BufferedReader glassLog = new BufferedReader(new FileReader(
-					"log_glass.txt"));
-			timings.put(true, new ArrayList<String>());
-			timings.put(false, new ArrayList<String>());
-			while (glassLog.ready()) {
-				String line = glassLog.readLine();
-				timings.get(line.charAt(0) == 'o').add(line);
-				totalGlassLogLines++;
-			}
-			glassLog.close();
-			while (log.ready()) {
-				String line = log.readLine();
-				ArrayList<String> timing = timings.get(line.charAt(0) == 'o');
-				int size = timing.size();
-				for (int i = 0; i < size; i++) {
-					if (getDifference(line, timing.get(i)) >= 0
-							&& getDifference(line, timing.get(i)) <= 5499) {
-						correct++;
-						delay += (getDifference(line, timing.get(i)));
-						timings.remove((timing.get(i)));
-						break;
-					}
+			if (file_glass.exists()) {
+				BufferedReader glassLog = new BufferedReader(new FileReader(
+						file_glass));
+				timings.put(true, new ArrayList<String>());
+				timings.put(false, new ArrayList<String>());
+				while (glassLog.ready()) {
+					String line = glassLog.readLine();
+					timings.get(line.charAt(0) == 'o').add(line);
+					totalGlassLogLines++;
 				}
-				totalLogLines++;
+				glassLog.close();
 			}
-			log.close();
+			if (file.exists()) {
+				BufferedReader log = new BufferedReader(new FileReader(file));
+				while (log.ready()) {
+					String line = log.readLine();
+					ArrayList<String> timing = timings
+							.get(line.charAt(0) == 'o');
+					int size = timing.size();
+					for (int i = 0; i < size; i++) {
+						if (getDifference(line, timing.get(i)) >= 0
+								&& getDifference(line, timing.get(i)) <= 5499) {
+							correct++;
+							delay += (getDifference(line, timing.get(i)));
+							timings.remove((timing.get(i)));
+							break;
+						}
+					}
+					totalLogLines++;
+				}
+				log.close();
+			}
+
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -291,9 +297,28 @@ public class MainWindow extends JPanel {
 					caps = !caps;
 					fw.close();
 				}
-			} catch (IOException e) {
 
+			} catch (IOException e) {
 				e.printStackTrace();
+			}
+		}
+	}
+
+	class capsLockFeedbackRunnable implements Runnable {
+
+		@Override
+		public void run() {
+			try {
+				byte buf[] = "good".getBytes();
+				DatagramSocket capsLockFeedbackSocket = new DatagramSocket();
+				InetAddress hostAddress = InetAddress
+						.getByName("137.250.171.64");
+				buf = (caps != caps_glass) ? "bad".getBytes() : "good"
+						.getBytes();
+				DatagramPacket capsLockFeedbackPacket = new DatagramPacket(buf,
+						buf.length, hostAddress, 34144);
+				capsLockFeedbackSocket.send(capsLockFeedbackPacket);
+			} catch (IOException e) {
 			}
 		}
 	}
@@ -311,7 +336,8 @@ public class MainWindow extends JPanel {
 				file.getParentFile().mkdirs();
 			}
 			try {
-				art = new ActionReciverThread(MainWindow.this,idTextField.getText());
+				art = new ActionReciverThread(MainWindow.this,
+						idTextField.getText());
 				art.start();
 			} catch (IOException e1) {
 				// TODO Auto-generated catch block
@@ -358,6 +384,19 @@ public class MainWindow extends JPanel {
 					e1.printStackTrace();
 				}
 			}
+			if (!feedbackStarted) {
+				ScheduledExecutorService exec = Executors
+						.newScheduledThreadPool(1);
+				exec.scheduleAtFixedRate(new capsLockRunnable(), 0, 300,
+						TimeUnit.MILLISECONDS);
+				ScheduledExecutorService execFeedback = Executors
+						.newScheduledThreadPool(1);
+				execFeedback.scheduleAtFixedRate(
+						new capsLockFeedbackRunnable(), 0, 100,
+						TimeUnit.MILLISECONDS);
+
+				feedbackStarted = true;
+			}
 		}
 
 	}
@@ -366,6 +405,8 @@ public class MainWindow extends JPanel {
 		@Override
 		public void actionPerformed(ActionEvent e) {
 			art.closeSocket();
+			file_glass = art.getLog();
+			System.out.println(file_glass);
 			JFrame topFrame = (JFrame) SwingUtilities
 					.getWindowAncestor(MainWindow.this);
 			if (((JButton) e.getSource()).getText().equals("finish")) {
@@ -373,6 +414,7 @@ public class MainWindow extends JPanel {
 
 				outputTextArea.setFont(outputTextArea.getFont().deriveFont(35));
 				time /= 1000000000.0;
+
 				compareLogs();
 				outputTextArea
 						.setText(((time == 0 || text.length() == 0) ? "zero"
@@ -390,6 +432,10 @@ public class MainWindow extends JPanel {
 								+ "the total delay is: "
 								+ delay
 								+ newline
+								+ "the average delay is: "
+								+ delay
+								/ ((correct == 0) ? 1 : correct)
+								+ newline
 								+ "the total number of correct caps lock hits is: "
 								+ correct
 								+ newline
@@ -402,9 +448,19 @@ public class MainWindow extends JPanel {
 			} else {
 				String[] args = new String[0];
 				topFrame.dispose();
+				correct = 0;
+				delay = 0;
+				totalLogLines = 0;
+				totalGlassLogLines = 0;
+				file = null;
+				file_glass = null;
 				main(args);
 			}
 
 		}
+	}
+
+	public void setCaps_glass(boolean caps_glass) {
+		this.caps_glass = caps_glass;
 	}
 }
