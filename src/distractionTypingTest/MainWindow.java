@@ -33,6 +33,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import javax.sound.sampled.AudioFileFormat;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.DataLine;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.TargetDataLine;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -67,6 +74,7 @@ public class MainWindow extends JPanel {
 
 	private static File file;
 	private static File file_glass;
+	private static File file_text;
 	private boolean caps;
 	private ActionReciverThread art;
 	private boolean startSignalAck;
@@ -162,24 +170,7 @@ public class MainWindow extends JPanel {
 				dim.height / 2 - topFrame.getSize().height / 2);
 	}
 
-	public static void main(String[] args) {
-		// Schedule a job for the event dispatch thread:
-		// creating and showing this application's GUI.
-		javax.swing.SwingUtilities.invokeLater(new Runnable() {
-			public void run() {
-				createAndShowGUI();
-			}
-		});
-		// HashMap<Boolean, ArrayList<String>> test = new HashMap<>();
-		// test.put(true, new ArrayList<>());
-		// test.get(true).add("hey");
-		// test.get(true).add("hey2");
-		// test.get(true).add("hey3");
-		// for(String x : test.get(true)){
-		// test.get(true).remove(x);
-		// }
-		// System.out.println(test.get(true).size());
-	}
+	
 
 	public void setStartSignalAck(boolean startSignalAck) {
 		this.startSignalAck = startSignalAck;
@@ -332,8 +323,13 @@ public class MainWindow extends JPanel {
 					.substring(0, dateTime.indexOf('.')).replace(':', '.');
 			file = new File("logs/" + idTextField.getText() + "/" + dateTime
 					+ "/log.txt");
+			file_text = new File("logs/" + idTextField.getText() + "/"
+					+ dateTime + "/text.txt");
 			if (!(file.getParentFile().exists())) {
 				file.getParentFile().mkdirs();
+			}
+			if (!(file_text.getParentFile().exists())) {
+				file_text.getParentFile().mkdirs();
 			}
 			try {
 				art = new ActionReciverThread(MainWindow.this,
@@ -406,15 +402,12 @@ public class MainWindow extends JPanel {
 		public void actionPerformed(ActionEvent e) {
 			art.closeSocket();
 			file_glass = art.getLog();
-			System.out.println(file_glass);
 			JFrame topFrame = (JFrame) SwingUtilities
 					.getWindowAncestor(MainWindow.this);
 			if (((JButton) e.getSource()).getText().equals("finish")) {
 				inputTextArea.setEditable(false);
-
 				outputTextArea.setFont(outputTextArea.getFont().deriveFont(35));
 				time /= 1000000000.0;
-
 				compareLogs();
 				outputTextArea
 						.setText(((time == 0 || text.length() == 0) ? "zero"
@@ -442,6 +435,15 @@ public class MainWindow extends JPanel {
 								+ "the total number of lines in log is: "
 								+ totalLogLines);
 				finish.setText("restart");
+				try {
+					FileWriter fw = new FileWriter(file_text);
+					fw.write(text);
+					fw.flush();
+					fw.close();
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
 				scrollPane.getVerticalScrollBar().setValue(0);
 				refreshFrame(false);
 
@@ -462,5 +464,23 @@ public class MainWindow extends JPanel {
 
 	public void setCaps_glass(boolean caps_glass) {
 		this.caps_glass = caps_glass;
+	}
+	public static void main(String[] args) {
+		// Schedule a job for the event dispatch thread:
+		// creating and showing this application's GUI.
+		javax.swing.SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+				createAndShowGUI();
+			}
+		});
+		// HashMap<Boolean, ArrayList<String>> test = new HashMap<>();
+		// test.put(true, new ArrayList<>());
+		// test.get(true).add("hey");
+		// test.get(true).add("hey2");
+		// test.get(true).add("hey3");
+		// for(String x : test.get(true)){
+		// test.get(true).remove(x);
+		// }
+		// System.out.println(test.get(true).size());
 	}
 }
