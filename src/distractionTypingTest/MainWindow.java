@@ -26,20 +26,16 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.sql.Time;
-import java.time.LocalDateTime;
+
+//import java.time.LocalDateTime;
+import org.joda.time.LocalDateTime;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import javax.sound.sampled.AudioFileFormat;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.DataLine;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.TargetDataLine;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -88,6 +84,8 @@ public class MainWindow extends JPanel {
 	private static long delay;
 	private static int totalLogLines;
 	private static int totalGlassLogLines;
+
+	private static JavaSoundRecorder recorder = null;
 
 	public MainWindow() {
 		super(new GridBagLayout());
@@ -169,8 +167,6 @@ public class MainWindow extends JPanel {
 		topFrame.setLocation(dim.width / 2 - topFrame.getSize().width / 2,
 				dim.height / 2 - topFrame.getSize().height / 2);
 	}
-
-	
 
 	public void setStartSignalAck(boolean startSignalAck) {
 		this.startSignalAck = startSignalAck;
@@ -351,6 +347,29 @@ public class MainWindow extends JPanel {
 			MainWindow.this.add(finish, c);
 			MainWindow.this.refreshFrame(true);
 			inputTextArea.requestFocus();
+			// creates a new thread that waits for a specified
+			// of time before stopping
+			recorder = new JavaSoundRecorder(file_text.getParentFile()
+					.getPath() + "/sound.wav");
+			Thread record = new Thread(new Runnable() {
+
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					recorder.start();
+				}
+			});
+			// start
+			record.start();
+			Runtime.getRuntime().addShutdownHook(
+					new Thread("app-shutdown-hook") {
+						@Override
+						public void run() {
+							recorder.finish();
+							System.out.println("bye");
+						}
+					});
+
 		}
 	}
 
@@ -400,6 +419,8 @@ public class MainWindow extends JPanel {
 	class finnishButtonActionListner implements ActionListener {
 		@Override
 		public void actionPerformed(ActionEvent e) {
+			recorder.finish();
+
 			art.closeSocket();
 			file_glass = art.getLog();
 			JFrame topFrame = (JFrame) SwingUtilities
@@ -465,6 +486,7 @@ public class MainWindow extends JPanel {
 	public void setCaps_glass(boolean caps_glass) {
 		this.caps_glass = caps_glass;
 	}
+
 	public static void main(String[] args) {
 		// Schedule a job for the event dispatch thread:
 		// creating and showing this application's GUI.
