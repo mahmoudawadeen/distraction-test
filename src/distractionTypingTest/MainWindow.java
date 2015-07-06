@@ -24,12 +24,9 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.sql.Time;
-
-//import java.time.LocalDateTime;
-import org.joda.time.LocalDateTime;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.Executors;
@@ -37,6 +34,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -45,6 +43,8 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
 import org.apache.commons.lang3.StringUtils;
+//import java.time.LocalDateTime;
+import org.joda.time.LocalDateTime;
 import org.joda.time.LocalTime;
 
 public class MainWindow extends JPanel {
@@ -58,6 +58,9 @@ public class MainWindow extends JPanel {
 	protected GridBagConstraints c;
 	protected JButton startButton;
 	protected JTextField idTextField;
+	protected JComboBox<String> glassState;
+
+	protected static final String states[] = { "double", "colored", "fading" };
 
 	private boolean timerStarted;
 
@@ -74,6 +77,7 @@ public class MainWindow extends JPanel {
 	private boolean caps;
 	private ActionReciverThread art;
 	private boolean startSignalAck;
+	private String selectedState;
 
 	private boolean feedbackStarted;
 	private boolean caps_glass;
@@ -113,7 +117,9 @@ public class MainWindow extends JPanel {
 		outputTextArea.selectAll();
 		idTextField = new JTextField("Enter user id");
 		idTextField.selectAll();
+		glassState = new JComboBox<String>(states);
 		add(idTextField, c);
+		add(glassState, c);
 		add(scrollPane, c);
 		add(startButton, c);
 		startButton.addActionListener(new startButtonActionListener());
@@ -335,6 +341,7 @@ public class MainWindow extends JPanel {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
 			}
+			selectedState = (String) glassState.getSelectedItem();
 			originalText = outputTextArea.getText();
 			startButton.setVisible(false);
 			outputTextArea.setText(null);
@@ -379,13 +386,13 @@ public class MainWindow extends JPanel {
 		public void run() {
 			if (!startSignalAck) {
 				try {
-					byte buf[] = "start".getBytes();
+					byte buf[] = selectedState.getBytes();
 					DatagramSocket startSignalSocket = new DatagramSocket();
 					InetAddress hostAddress = InetAddress
 							.getByName("137.250.171.64");
 					DatagramPacket startSignalPacket = new DatagramPacket(buf,
 							buf.length, hostAddress, 34144);
-					System.out.println("start sent");
+					System.out.println(selectedState + " sent");
 					startSignalSocket.send(startSignalPacket);
 					startSignalSocket.close();
 				} catch (SocketException e1) {
@@ -469,15 +476,34 @@ public class MainWindow extends JPanel {
 				refreshFrame(false);
 
 			} else {
-				String[] args = new String[0];
-				topFrame.dispose();
-				correct = 0;
-				delay = 0;
-				totalLogLines = 0;
-				totalGlassLogLines = 0;
-				file = null;
-				file_glass = null;
-				main(args);
+				// String[] args = new String[0];
+				// topFrame.dispose();
+				// correct = 0;
+				// delay = 0;
+				// totalLogLines = 0;
+				// totalGlassLogLines = 0;
+				// file = null;
+				// file_glass = null;
+				// main(args);
+				
+				try {
+					art.closeSocket();
+					byte buf[] = "restart".getBytes();
+					DatagramSocket startSignalSocket;
+					startSignalSocket = new DatagramSocket();
+					InetAddress hostAddress = InetAddress
+							.getByName("137.250.171.64");
+					DatagramPacket startSignalPacket = new DatagramPacket(buf,
+							buf.length, hostAddress, 34144);
+					System.out.println(selectedState + " sent");
+					startSignalSocket.send(startSignalPacket);
+					restartApplication();
+					startSignalSocket.close();
+				}catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+				
 			}
 
 		}
@@ -485,6 +511,34 @@ public class MainWindow extends JPanel {
 
 	public void setCaps_glass(boolean caps_glass) {
 		this.caps_glass = caps_glass;
+	}
+
+	public void restartApplication() {
+
+		try {
+			final String javaBin = System.getProperty("java.home")
+					+ File.separator + "bin" + File.separator + "java";
+			File currentJar = new File("mainWindow.jar");
+			/* is it a jar file? */
+			if (!currentJar.getName().endsWith(".jar"))
+			{	
+				return;
+			}
+
+			/* Build command: java -jar application.jar */
+			final ArrayList<String> command = new ArrayList<String>();
+			command.add(javaBin);
+			command.add("-jar");
+			command.add(currentJar.getPath());
+
+			final ProcessBuilder builder = new ProcessBuilder(command);
+			builder.start();
+			System.exit(0);
+		}catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
 	}
 
 	public static void main(String[] args) {
