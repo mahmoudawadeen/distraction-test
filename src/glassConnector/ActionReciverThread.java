@@ -23,6 +23,7 @@ public class ActionReciverThread extends Thread {
 	FileWriter fw;
 	MainWindow window;
 	String message;
+	boolean restartReceivedBoolean=false;
 
 	boolean socketOpened;
 
@@ -50,9 +51,12 @@ public class ActionReciverThread extends Thread {
 			while (open) {
 				socket.receive(dgp);
 				message = new String(dgp.getData(), 0, dgp.getLength());
+				System.out.println(message);
 				switch (message) {
+				case"restart received":
+					restartReceivedBoolean=true;
+					break;
 				case "received":
-					System.out.println("done");
 					window.setStartSignalAck(true);
 					break;
 				case "time finished":
@@ -81,5 +85,8 @@ public class ActionReciverThread extends Thread {
 	}
 	public File getLog(){
 		return file;
+	}
+	public boolean getRestartRecieved(){
+		return restartReceivedBoolean;
 	}
 }

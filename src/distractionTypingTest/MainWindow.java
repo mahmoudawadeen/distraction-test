@@ -23,9 +23,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.SocketException;
-import java.net.URISyntaxException;
-import java.net.UnknownHostException;
+import java.net.InetSocketAddress;
 import java.sql.Time;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -48,6 +46,9 @@ import org.joda.time.LocalDateTime;
 import org.joda.time.LocalTime;
 
 public class MainWindow extends JPanel {
+
+	private static final String ADDRESS = "137.250.171.64";
+	private static final int PORT = 34144;
 
 	private static final long serialVersionUID = -4434843170363458281L;
 	protected JTextArea inputTextArea;
@@ -123,6 +124,12 @@ public class MainWindow extends JPanel {
 		add(scrollPane, c);
 		add(startButton, c);
 		startButton.addActionListener(new startButtonActionListener());
+		Runtime.getRuntime().addShutdownHook(new Thread("app-shutdown-hook") {
+			@Override
+			public void run() {
+				sendMessage("bye");
+			}
+		});
 
 	}
 
@@ -301,18 +308,7 @@ public class MainWindow extends JPanel {
 
 		@Override
 		public void run() {
-			try {
-				byte buf[] = "good".getBytes();
-				DatagramSocket capsLockFeedbackSocket = new DatagramSocket();
-				InetAddress hostAddress = InetAddress
-						.getByName("137.250.171.64");
-				buf = (caps != caps_glass) ? "bad".getBytes() : "good"
-						.getBytes();
-				DatagramPacket capsLockFeedbackPacket = new DatagramPacket(buf,
-						buf.length, hostAddress, 34144);
-				capsLockFeedbackSocket.send(capsLockFeedbackPacket);
-			} catch (IOException e) {
-			}
+			sendMessage((caps != caps_glass) ? "bad" : "good");
 		}
 	}
 
@@ -326,7 +322,7 @@ public class MainWindow extends JPanel {
 			file = new File("logs/" + idTextField.getText() + "/" + dateTime
 					+ "/log.txt");
 			file_text = new File("logs/" + idTextField.getText() + "/"
-					+ dateTime + "/text.txt");
+					+ dateTime + "/output.txt");
 			if (!(file.getParentFile().exists())) {
 				file.getParentFile().mkdirs();
 			}
@@ -373,7 +369,6 @@ public class MainWindow extends JPanel {
 						@Override
 						public void run() {
 							recorder.finish();
-							System.out.println("bye");
 						}
 					});
 
@@ -385,26 +380,7 @@ public class MainWindow extends JPanel {
 		@Override
 		public void run() {
 			if (!startSignalAck) {
-				try {
-					byte buf[] = selectedState.getBytes();
-					DatagramSocket startSignalSocket = new DatagramSocket();
-					InetAddress hostAddress = InetAddress
-							.getByName("137.250.171.64");
-					DatagramPacket startSignalPacket = new DatagramPacket(buf,
-							buf.length, hostAddress, 34144);
-					System.out.println(selectedState + " sent");
-					startSignalSocket.send(startSignalPacket);
-					startSignalSocket.close();
-				} catch (SocketException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				} catch (UnknownHostException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				} catch (IOException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				}
+				sendMessage(selectedState);
 			}
 			if (!feedbackStarted) {
 				ScheduledExecutorService exec = Executors
@@ -429,6 +405,7 @@ public class MainWindow extends JPanel {
 			recorder.finish();
 
 			art.closeSocket();
+			art.interrupt();
 			file_glass = art.getLog();
 			JFrame topFrame = (JFrame) SwingUtilities
 					.getWindowAncestor(MainWindow.this);
@@ -437,35 +414,37 @@ public class MainWindow extends JPanel {
 				outputTextArea.setFont(outputTextArea.getFont().deriveFont(35));
 				time /= 1000000000.0;
 				compareLogs();
-				outputTextArea
-						.setText(((time == 0 || text.length() == 0) ? "zero"
-								: ((text.length() * 1.0) / time) + "")
-								+ " characters per second"
-								+ newline
-								+ "the two strings are "
-								+ StringUtils.getJaroWinklerDistance(text,
-										originalText)
-								+ "% similar"
-								+ newline
-								+ "the total number of lines in glass log is: "
-								+ totalGlassLogLines
-								+ newline
-								+ "the total delay is: "
-								+ delay
-								+ newline
-								+ "the average delay is: "
-								+ delay
-								/ ((correct == 0) ? 1 : correct)
-								+ newline
-								+ "the total number of correct caps lock hits is: "
-								+ correct
-								+ newline
-								+ "the total number of lines in log is: "
-								+ totalLogLines);
+				String output = ("*test results*"+ newline + ((time == 0 || text
+						.length() == 0) ? "zero"
+						: ((text.length() * 1.0) / time) + ""))
+						+ " characters per second"
+						+ newline
+						+ "the two strings are "
+						+ StringUtils
+								.getJaroWinklerDistance(text, originalText)
+						+ "% similar"
+						+ newline
+						+ "the total number of lines in glass log is: "
+						+ totalGlassLogLines
+						+ newline
+						+ "the total delay is: "
+						+ delay
+						+ newline
+						+ "the average delay is: "
+						+ delay
+						/ ((correct == 0) ? 1 : correct)
+						+ newline
+						+ "the total number of correct caps lock hits is: "
+						+ correct
+						+ newline
+						+ "the total number of lines in log is: "
+						+ totalLogLines;
+				outputTextArea.setText(output);
 				finish.setText("restart");
 				try {
 					FileWriter fw = new FileWriter(file_text);
 					fw.write(text);
+					fw.write(output);
 					fw.flush();
 					fw.close();
 				} catch (IOException e1) {
@@ -485,25 +464,13 @@ public class MainWindow extends JPanel {
 				// file = null;
 				// file_glass = null;
 				// main(args);
-				
-				try {
-					art.closeSocket();
-					byte buf[] = "restart".getBytes();
-					DatagramSocket startSignalSocket;
-					startSignalSocket = new DatagramSocket();
-					InetAddress hostAddress = InetAddress
-							.getByName("137.250.171.64");
-					DatagramPacket startSignalPacket = new DatagramPacket(buf,
-							buf.length, hostAddress, 34144);
-					System.out.println(selectedState + " sent");
-					startSignalSocket.send(startSignalPacket);
-					restartApplication();
-					startSignalSocket.close();
-				}catch (IOException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
+				art.closeSocket();
+				sendMessage("restart");
+				while (!art.getRestartRecieved()) {
+					sendMessage("restart");
 				}
-				
+				restartApplication();
+
 			}
 
 		}
@@ -520,11 +487,9 @@ public class MainWindow extends JPanel {
 					+ File.separator + "bin" + File.separator + "java";
 			File currentJar = new File("mainWindow.jar");
 			/* is it a jar file? */
-			if (!currentJar.getName().endsWith(".jar"))
-			{	
+			if (!currentJar.getName().endsWith(".jar")) {
 				return;
 			}
-
 			/* Build command: java -jar application.jar */
 			final ArrayList<String> command = new ArrayList<String>();
 			command.add(javaBin);
@@ -534,8 +499,23 @@ public class MainWindow extends JPanel {
 			final ProcessBuilder builder = new ProcessBuilder(command);
 			builder.start();
 			System.exit(0);
-		}catch (IOException e) {
+		} catch (IOException e) {
 			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+	}
+
+	public static void sendMessage(String message) {
+		try {
+			DatagramSocket socket = new DatagramSocket();
+			byte[] buf = message.getBytes();
+			InetAddress hostAddress = InetAddress.getByName(ADDRESS);
+			DatagramPacket dgp = new DatagramPacket(buf, buf.length,
+					hostAddress, PORT);
+			socket.send(dgp);
+			socket.close();
+		} catch (IOException e) {
 			e.printStackTrace();
 		}
 
