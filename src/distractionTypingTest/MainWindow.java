@@ -23,7 +23,8 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.sql.Time;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,9 +42,7 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
 import org.apache.commons.lang3.StringUtils;
-//import java.time.LocalDateTime;
 import org.joda.time.LocalDateTime;
-import org.joda.time.LocalTime;
 
 public class MainWindow extends JPanel {
 
@@ -61,7 +60,7 @@ public class MainWindow extends JPanel {
 	protected JTextField idTextField;
 	protected JComboBox<String> glassState;
 
-	protected static final String states[] = { "double", "colored", "fading" };
+	protected static String states[] = {"double", "colored", "fading"};
 
 	private boolean timerStarted;
 
@@ -75,13 +74,14 @@ public class MainWindow extends JPanel {
 	private static File file;
 	private static File file_glass;
 	private static File file_text;
-	private boolean caps;
+	private boolean capsLockBoolean;
 	private ActionReciverThread art;
 	private boolean startSignalAck;
 	private String selectedState;
 
-	private boolean feedbackStarted;
 	private boolean caps_glass;
+	public long lastKeyTypedAt;
+	public boolean sleep;
 
 	private final static String newline = "\n";
 
@@ -92,9 +92,31 @@ public class MainWindow extends JPanel {
 
 	private static JavaSoundRecorder recorder = null;
 
+	private boolean done;
+
+	private static String[] mainArgs;
+	private String id;
+	private String doneState;
+
+	DatagramSocket socket;
+	InetAddress hostAddress;
+	byte[] buf;
+	DatagramPacket dgp;
+
 	public MainWindow() {
 		super(new GridBagLayout());
-		caps = Toolkit.getDefaultToolkit().getLockingKeyState(
+		try {
+			socket = new DatagramSocket();
+			hostAddress = InetAddress.getByName(ADDRESS);
+		} catch (SocketException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (UnknownHostException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		capsLockBoolean = Toolkit.getDefaultToolkit().getLockingKeyState(
 				KeyEvent.VK_CAPS_LOCK);
 		inputTextArea = new JTextArea(20, 40);
 		inputTextArea.setLineWrap(true);
@@ -116,7 +138,19 @@ public class MainWindow extends JPanel {
 		outputTextArea.setEditable(true);
 		outputTextArea.setText("Enter the text for the test.");
 		outputTextArea.selectAll();
-		idTextField = new JTextField("Enter user id");
+		if (mainArgs.length == 0)
+			idTextField = new JTextField("Enter user id");
+		else {
+			idTextField = new JTextField(mainArgs[0]);
+			String[] newStates = new String[2];
+			int i = 0;
+			for (String state : states) {
+				if (!state.equals(mainArgs[1]))
+					newStates[i++] = state;
+
+			}
+			states = newStates;
+		}
 		idTextField.selectAll();
 		glassState = new JComboBox<String>(states);
 		add(idTextField, c);
@@ -132,7 +166,6 @@ public class MainWindow extends JPanel {
 		});
 
 	}
-
 	/**
 	 * Create the GUI and show it. For thread safety, this method should be
 	 * invoked from the event dispatch thread.
@@ -185,16 +218,11 @@ public class MainWindow extends JPanel {
 		this.startSignalAck = startSignalAck;
 	}
 
-	@SuppressWarnings("deprecation")
 	public static long getDifference(String first, String second) {
-		String[] firstSplitted = first.split(" ")[2].split(":");
-		String[] secondSplitted = second.split(" ")[2].split(":");
-		Time t1 = new Time(Integer.parseInt(firstSplitted[0]),
-				Integer.parseInt(firstSplitted[1]),
-				(int) Double.parseDouble(firstSplitted[2]));
-		Time t2 = new Time(Integer.parseInt(secondSplitted[0]),
-				Integer.parseInt(secondSplitted[1]),
-				(int) Double.parseDouble(secondSplitted[2]));
+		String firstSplitted = first.split(" ")[2];
+		String secondSplitted = second.split(" ")[2];
+		Time t1 = new Time(Long.parseLong(firstSplitted));
+		Time t2 = new Time(Long.parseLong(secondSplitted));
 		return t1.getTime() - t2.getTime();
 
 	}
@@ -209,7 +237,7 @@ public class MainWindow extends JPanel {
 				timings.put(false, new ArrayList<String>());
 				while (glassLog.ready()) {
 					String line = glassLog.readLine();
-					timings.get(line.charAt(0) == 'o').add(line);
+					timings.get(line.contains("on")).add(line);
 					totalGlassLogLines++;
 				}
 				glassLog.close();
@@ -218,8 +246,7 @@ public class MainWindow extends JPanel {
 				BufferedReader log = new BufferedReader(new FileReader(file));
 				while (log.ready()) {
 					String line = log.readLine();
-					ArrayList<String> timing = timings
-							.get(line.charAt(0) == 'o');
+					ArrayList<String> timing = timings.get(line.contains("on"));
 					int size = timing.size();
 					for (int i = 0; i < size; i++) {
 						if (getDifference(line, timing.get(i)) >= 0
@@ -247,7 +274,10 @@ public class MainWindow extends JPanel {
 	class textFieldKeyListener implements KeyListener {
 		@Override
 		public void keyTyped(KeyEvent e) {
-			new Thread(new startSignalThread()).start();
+			lastKeyTypedAt = System.nanoTime();
+			if (!startSignalAck) {
+				sendMessage(selectedState);
+			}
 			if (e.getKeyChar() != KeyEvent.VK_ENTER) {
 				if (!timerStarted) {
 					timerStarted = true;
@@ -287,14 +317,15 @@ public class MainWindow extends JPanel {
 		public void run() {
 			FileWriter fw;
 			try {
-				if (caps != Toolkit.getDefaultToolkit().getLockingKeyState(
-						KeyEvent.VK_CAPS_LOCK)) {
+				if (capsLockBoolean != Toolkit.getDefaultToolkit()
+						.getLockingKeyState(KeyEvent.VK_CAPS_LOCK)) {
 					fw = new FileWriter(file, true);
 					fw.write(((Toolkit.getDefaultToolkit()
-							.getLockingKeyState(KeyEvent.VK_CAPS_LOCK)) ? "on"
+							.getLockingKeyState(KeyEvent.VK_CAPS_LOCK))
+							? "on"
 							: "off")
-							+ " at " + LocalTime.now() + newline);
-					caps = !caps;
+							+ " at " + System.currentTimeMillis() + newline);
+					capsLockBoolean = !capsLockBoolean;
 					fw.close();
 				}
 
@@ -308,7 +339,24 @@ public class MainWindow extends JPanel {
 
 		@Override
 		public void run() {
-			sendMessage((caps != caps_glass) ? "bad" : "good");
+			if (!done) {
+				sendMessage(((capsLockBoolean != caps_glass)) ? "bad" : "good");
+				double time = (System.nanoTime() - lastKeyTypedAt) / 1000000.0;
+				if (time > 2000 && !sleep) {
+					sendMessage("sleep");
+					sendMessage("sleep");
+					System.out.println("sleep");
+					sleep = true;
+				} else {
+					if (time <= 2000 && sleep) {
+						sleep = false;
+						sendMessage("wakeup");
+						sendMessage("wakeup");
+						System.out.println("wakeup");
+					}
+
+				}
+			}
 		}
 	}
 
@@ -323,6 +371,7 @@ public class MainWindow extends JPanel {
 					+ "/log.txt");
 			file_text = new File("logs/" + idTextField.getText() + "/"
 					+ dateTime + "/output.txt");
+			id = idTextField.getText();
 			if (!(file.getParentFile().exists())) {
 				file.getParentFile().mkdirs();
 			}
@@ -374,73 +423,51 @@ public class MainWindow extends JPanel {
 
 		}
 	}
-
-	class startSignalThread implements Runnable {
-
-		@Override
-		public void run() {
-			if (!startSignalAck) {
-				sendMessage(selectedState);
-			}
-			if (!feedbackStarted) {
-				ScheduledExecutorService exec = Executors
-						.newScheduledThreadPool(1);
-				exec.scheduleAtFixedRate(new capsLockRunnable(), 0, 300,
-						TimeUnit.MILLISECONDS);
-				ScheduledExecutorService execFeedback = Executors
-						.newScheduledThreadPool(1);
-				execFeedback.scheduleAtFixedRate(
-						new capsLockFeedbackRunnable(), 0, 100,
-						TimeUnit.MILLISECONDS);
-
-				feedbackStarted = true;
-			}
-		}
-
+	public void startFeedback() {
+		ScheduledExecutorService exec = Executors.newScheduledThreadPool(1);
+		exec.scheduleAtFixedRate(new capsLockRunnable(), 0, 300,
+				TimeUnit.MILLISECONDS);
+		ScheduledExecutorService execFeedback = Executors
+				.newScheduledThreadPool(1);
+		execFeedback.scheduleAtFixedRate(new capsLockFeedbackRunnable(), 0,
+				100, TimeUnit.MILLISECONDS);
 	}
-
 	class finnishButtonActionListner implements ActionListener {
 		@Override
 		public void actionPerformed(ActionEvent e) {
+			done = true;
+			doneState = selectedState;
 			recorder.finish();
-
 			art.closeSocket();
 			art.interrupt();
 			file_glass = art.getLog();
-			JFrame topFrame = (JFrame) SwingUtilities
-					.getWindowAncestor(MainWindow.this);
 			if (((JButton) e.getSource()).getText().equals("finish")) {
 				inputTextArea.setEditable(false);
 				outputTextArea.setFont(outputTextArea.getFont().deriveFont(35));
 				time /= 1000000000.0;
 				compareLogs();
-				String output = ("*test results*"+ newline + ((time == 0 || text
-						.length() == 0) ? "zero"
-						: ((text.length() * 1.0) / time) + ""))
+				String output = "*test results*"
+						+ newline
+						+ selectedState
+						+ newline
+						+ ((time == 0 || text.length() == 0) ? "zero" : ((text
+								.length() * 1.0) / time) + "")
 						+ " characters per second"
 						+ newline
 						+ "the two strings are "
 						+ StringUtils
 								.getJaroWinklerDistance(text, originalText)
-						+ "% similar"
-						+ newline
+						+ "% similar" + newline
 						+ "the total number of lines in glass log is: "
-						+ totalGlassLogLines
-						+ newline
-						+ "the total delay is: "
-						+ delay
-						+ newline
-						+ "the average delay is: "
-						+ delay
-						/ ((correct == 0) ? 1 : correct)
-						+ newline
+						+ totalGlassLogLines + newline + "the total delay is: "
+						+ delay + newline + "the average delay is: "
+						+ delay / ((correct == 0) ? 1 : correct) + newline
 						+ "the total number of correct caps lock hits is: "
-						+ correct
-						+ newline
+						+ correct + newline
 						+ "the total number of lines in log is: "
 						+ totalLogLines;
 				outputTextArea.setText(output);
-				finish.setText("restart");
+				finish.setText("restart glass");
 				try {
 					FileWriter fw = new FileWriter(file_text);
 					fw.write(text);
@@ -452,6 +479,8 @@ public class MainWindow extends JPanel {
 					e1.printStackTrace();
 				}
 				scrollPane.getVerticalScrollBar().setValue(0);
+				if (startSignalAck)
+					sendMessage("finish");
 				refreshFrame(false);
 
 			} else {
@@ -466,11 +495,7 @@ public class MainWindow extends JPanel {
 				// main(args);
 				art.closeSocket();
 				sendMessage("restart");
-				while (!art.getRestartRecieved()) {
-					sendMessage("restart");
-				}
-				restartApplication();
-
+				finish.setText("restart test");
 			}
 
 		}
@@ -481,7 +506,7 @@ public class MainWindow extends JPanel {
 	}
 
 	public void restartApplication() {
-
+		sendMessage("ack received");
 		try {
 			final String javaBin = System.getProperty("java.home")
 					+ File.separator + "bin" + File.separator + "java";
@@ -495,6 +520,8 @@ public class MainWindow extends JPanel {
 			command.add(javaBin);
 			command.add("-jar");
 			command.add(currentJar.getPath());
+			command.add(id);
+			command.add(doneState);
 
 			final ProcessBuilder builder = new ProcessBuilder(command);
 			builder.start();
@@ -506,15 +533,11 @@ public class MainWindow extends JPanel {
 
 	}
 
-	public static void sendMessage(String message) {
+	public void sendMessage(String message) {
 		try {
-			DatagramSocket socket = new DatagramSocket();
-			byte[] buf = message.getBytes();
-			InetAddress hostAddress = InetAddress.getByName(ADDRESS);
-			DatagramPacket dgp = new DatagramPacket(buf, buf.length,
-					hostAddress, PORT);
+			buf = message.getBytes();
+			dgp = new DatagramPacket(buf, buf.length, hostAddress, PORT);
 			socket.send(dgp);
-			socket.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -524,6 +547,7 @@ public class MainWindow extends JPanel {
 	public static void main(String[] args) {
 		// Schedule a job for the event dispatch thread:
 		// creating and showing this application's GUI.
+		mainArgs = args;
 		javax.swing.SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
 				createAndShowGUI();

@@ -7,10 +7,8 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
-//import java.time.LocalDateTime;
 import org.joda.time.LocalDateTime;
 
-import org.joda.time.LocalTime;
 
 import distractionTypingTest.MainWindow;
 
@@ -23,21 +21,21 @@ public class ActionReciverThread extends Thread {
 	FileWriter fw;
 	MainWindow window;
 	String message;
-	boolean restartReceivedBoolean=false;
+	boolean restartReceivedBoolean = false;
 
 	boolean socketOpened;
 
-	public ActionReciverThread(MainWindow window,String id) throws IOException {
+	public ActionReciverThread(MainWindow window, String id) throws IOException {
 		socket = new DatagramSocket(null);
 		socket.setReuseAddress(true);
-		socket.bind(new InetSocketAddress("0.0.0.0",PORT));
+		socket.bind(new InetSocketAddress("0.0.0.0", PORT));
 		this.window = window;
 		socketOpened = true;
 		String dateTime = LocalDateTime.now().toString();
 		dateTime = dateTime.replace('T', ' ')
 				.substring(0, dateTime.indexOf('.')).replace(':', '.');
-		file = new File("logs/" + id + "/" + dateTime+"/log_glass.txt");
-		if(!(file.getParentFile().exists())){
+		file = new File("logs/" + id + "/" + dateTime + "/log_glass.txt");
+		if (!(file.getParentFile().exists())) {
 			file.getParentFile().mkdirs();
 		}
 	}
@@ -48,26 +46,31 @@ public class ActionReciverThread extends Thread {
 		DatagramPacket dgp = new DatagramPacket(buf, buf.length);
 		try {
 			fw = new FileWriter(file, true);
-			while (open) {
+			while (true) {
 				socket.receive(dgp);
 				message = new String(dgp.getData(), 0, dgp.getLength());
 				System.out.println(message);
 				switch (message) {
-				case"restart received":
-					restartReceivedBoolean=true;
-					break;
-				case "received":
-					window.setStartSignalAck(true);
-					break;
-				case "time finished":
-					socket.close();
+					case "restart received" :
+						restartReceivedBoolean = true;
+						window.restartApplication();
+						break;
+					case "received" :
+						window.setStartSignalAck(true);
+						window.startFeedback();
+						break;
+					case "time finished" :
+						socket.close();
 
-					return;
-				default:
-					window.setCaps_glass(message.equals("on"));
-					fw.write(message + " at " + LocalTime.now() + newline);
-					fw.flush();
-					break;
+						return;
+					default :
+						if (open) {
+							window.setCaps_glass(message.equals("on"));
+							fw.write(message + " at " + System.currentTimeMillis()
+									+ newline);
+							fw.flush();
+						}
+						break;
 				}
 			}
 		} catch (SocketException e) {
@@ -80,13 +83,12 @@ public class ActionReciverThread extends Thread {
 	}
 
 	public void closeSocket() {
-		message = "time finished";
-		open=false;
+		open = false;
 	}
-	public File getLog(){
+	public File getLog() {
 		return file;
 	}
-	public boolean getRestartRecieved(){
+	public boolean getRestartRecieved() {
 		return restartReceivedBoolean;
 	}
 }
