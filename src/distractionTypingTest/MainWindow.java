@@ -25,6 +25,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
 import java.sql.Time;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,6 +60,7 @@ public class MainWindow extends JPanel {
 	protected JButton startButton;
 	protected JTextField idTextField;
 	protected JComboBox<String> glassState;
+	protected JButton restart;
 
 	protected static String states[] = {"double", "colored", "fading"};
 
@@ -93,10 +95,10 @@ public class MainWindow extends JPanel {
 	private static JavaSoundRecorder recorder = null;
 
 	private boolean done;
+	private boolean restartBoolean;
 
 	private static String[] mainArgs;
 	private String id;
-	private String doneState;
 
 	DatagramSocket socket;
 	InetAddress hostAddress;
@@ -142,14 +144,8 @@ public class MainWindow extends JPanel {
 			idTextField = new JTextField("Enter user id");
 		else {
 			idTextField = new JTextField(mainArgs[0]);
-			String[] newStates = new String[2];
-			int i = 0;
-			for (String state : states) {
-				if (!state.equals(mainArgs[1]))
-					newStates[i++] = state;
-
-			}
-			states = newStates;
+			if (mainArgs.length > 1)
+				states = mainArgs[1].split(" ");
 		}
 		idTextField.selectAll();
 		glassState = new JComboBox<String>(states);
@@ -339,8 +335,9 @@ public class MainWindow extends JPanel {
 
 		@Override
 		public void run() {
-			if (!done) {
-				sendMessage(((capsLockBoolean != caps_glass)) ? "bad" : "good");
+			if (!done && !restartBoolean) {
+				sendMessage(((Toolkit.getDefaultToolkit().getLockingKeyState(
+						KeyEvent.VK_CAPS_LOCK) != caps_glass)) ? "bad" : "good");
 				double time = (System.nanoTime() - lastKeyTypedAt) / 1000000.0;
 				if (time > 2000 && !sleep) {
 					sendMessage("sleep");
@@ -380,7 +377,7 @@ public class MainWindow extends JPanel {
 			}
 			try {
 				art = new ActionReciverThread(MainWindow.this,
-						idTextField.getText());
+						idTextField.getText(),dateTime);
 				art.start();
 			} catch (IOException e1) {
 				// TODO Auto-generated catch block
@@ -391,12 +388,29 @@ public class MainWindow extends JPanel {
 			startButton.setVisible(false);
 			outputTextArea.setText(null);
 			outputTextArea.setEditable(false);
+			restart = new JButton("restart");
+			restart.addActionListener(new ActionListener() {
+
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					art.closeSocket();
+					sendMessage("restart");
+				}
+			});
 			finish = new JButton("finish");
 			finish.addActionListener(new finnishButtonActionListner());
 			MainWindow.this.removeAll();
 			MainWindow.this.add(scrollPaneText, c);
 			MainWindow.this.add(scrollPane, c);
-			MainWindow.this.add(finish, c);
+			GridBagConstraints c2 = new GridBagConstraints();
+			c2.gridwidth = 2;
+			c2.fill = GridBagConstraints.BOTH;
+			c2.weightx = 0.5;
+			c2.weighty = 0.5;
+			MainWindow.this.add(finish, c2);
+			MainWindow.this.add(restart, c2);
+			JFrame temp = (JFrame) SwingUtilities.getWindowAncestor(MainWindow.this);
+			temp.setTitle(temp.getTitle()+" - "+selectedState);
 			MainWindow.this.refreshFrame(true);
 			inputTextArea.requestFocus();
 			// creates a new thread that waits for a specified
@@ -436,7 +450,6 @@ public class MainWindow extends JPanel {
 		@Override
 		public void actionPerformed(ActionEvent e) {
 			done = true;
-			doneState = selectedState;
 			recorder.finish();
 			art.closeSocket();
 			art.interrupt();
@@ -467,7 +480,6 @@ public class MainWindow extends JPanel {
 						+ "the total number of lines in log is: "
 						+ totalLogLines;
 				outputTextArea.setText(output);
-				finish.setText("restart glass");
 				try {
 					FileWriter fw = new FileWriter(file_text);
 					fw.write(text);
@@ -482,22 +494,9 @@ public class MainWindow extends JPanel {
 				if (startSignalAck)
 					sendMessage("finish");
 				refreshFrame(false);
-
-			} else {
-				// String[] args = new String[0];
-				// topFrame.dispose();
-				// correct = 0;
-				// delay = 0;
-				// totalLogLines = 0;
-				// totalGlassLogLines = 0;
-				// file = null;
-				// file_glass = null;
-				// main(args);
-				art.closeSocket();
-				sendMessage("restart");
-				finish.setText("restart test");
+				MainWindow.this.remove(finish);
+				MainWindow.this.refreshFrame(true);
 			}
-
 		}
 	}
 
@@ -521,8 +520,25 @@ public class MainWindow extends JPanel {
 			command.add("-jar");
 			command.add(currentJar.getPath());
 			command.add(id);
-			command.add(doneState);
+			if (done) {
+				String newStates = "";
+				for (String state : states) {
+					if (!state.equals(selectedState))
+						newStates += state + " ";
+				}
 
+				command.add(newStates);
+			} else {
+				if (mainArgs.length > 1)
+					command.add(mainArgs[1]);
+				Files.deleteIfExists(file.toPath());
+				Files.deleteIfExists(file_text.toPath());
+				art.deleteLog();
+				recorder.finish();
+				Files.deleteIfExists(recorder.wavFile.toPath());
+				Files.deleteIfExists(file.getParentFile().toPath());
+				
+			}
 			final ProcessBuilder builder = new ProcessBuilder(command);
 			builder.start();
 			System.exit(0);

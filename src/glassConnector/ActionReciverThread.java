@@ -7,7 +7,9 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
-import org.joda.time.LocalDateTime;
+import java.nio.file.Files;
+
+
 
 
 import distractionTypingTest.MainWindow;
@@ -25,19 +27,19 @@ public class ActionReciverThread extends Thread {
 
 	boolean socketOpened;
 
-	public ActionReciverThread(MainWindow window, String id) throws IOException {
+	public ActionReciverThread(MainWindow window, String id , String dateTime) throws IOException {
 		socket = new DatagramSocket(null);
 		socket.setReuseAddress(true);
 		socket.bind(new InetSocketAddress("0.0.0.0", PORT));
 		this.window = window;
 		socketOpened = true;
-		String dateTime = LocalDateTime.now().toString();
 		dateTime = dateTime.replace('T', ' ')
 				.substring(0, dateTime.indexOf('.')).replace(':', '.');
 		file = new File("logs/" + id + "/" + dateTime + "/log_glass.txt");
 		if (!(file.getParentFile().exists())) {
 			file.getParentFile().mkdirs();
 		}
+		fw = new FileWriter(file, true);
 	}
 
 	public void run() {
@@ -45,7 +47,7 @@ public class ActionReciverThread extends Thread {
 
 		DatagramPacket dgp = new DatagramPacket(buf, buf.length);
 		try {
-			fw = new FileWriter(file, true);
+			
 			while (true) {
 				socket.receive(dgp);
 				message = new String(dgp.getData(), 0, dgp.getLength());
@@ -87,6 +89,10 @@ public class ActionReciverThread extends Thread {
 	}
 	public File getLog() {
 		return file;
+	}
+	public void deleteLog() throws IOException{
+		fw.close();
+		Files.deleteIfExists(file.toPath());
 	}
 	public boolean getRestartRecieved() {
 		return restartReceivedBoolean;
