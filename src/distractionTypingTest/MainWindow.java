@@ -410,7 +410,7 @@ public class MainWindow extends JPanel {
 			MainWindow.this.add(finish, c2);
 			MainWindow.this.add(restart, c2);
 			JFrame temp = (JFrame) SwingUtilities.getWindowAncestor(MainWindow.this);
-			temp.setTitle(temp.getTitle()+" - "+selectedState);
+			temp.setTitle(temp.getTitle()+" -  "+selectedState);
 			MainWindow.this.refreshFrame(true);
 			inputTextArea.requestFocus();
 			// creates a new thread that waits for a specified
