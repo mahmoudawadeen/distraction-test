@@ -33,8 +33,6 @@ public class ActionReciverThread extends Thread {
 		socket.bind(new InetSocketAddress("0.0.0.0", PORT));
 		this.window = window;
 		socketOpened = true;
-		dateTime = dateTime.replace('T', ' ')
-				.substring(0, dateTime.indexOf('.')).replace(':', '.');
 		file = new File("logs/" + id + "/" + dateTime + "/log_glass.txt");
 		if (!(file.getParentFile().exists())) {
 			file.getParentFile().mkdirs();

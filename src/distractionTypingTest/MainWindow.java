@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.sql.Time;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -62,7 +63,11 @@ public class MainWindow extends JPanel {
 	protected JComboBox<String> glassState;
 	protected JButton restart;
 
-	protected static String states[] = {"double", "colored", "fading"};
+	protected static String states[];
+	protected static String ArrayOfStates[][] = {
+			{"double", "colored", "fading"}, {"double", "fading", "colored"},
+			{"colored", "double", "fading"}, {"colored", "fading", "double"},
+			{"fading", "double", "colored"}, {"fading", "colored", "double"}};
 
 	private boolean timerStarted;
 
@@ -140,12 +145,24 @@ public class MainWindow extends JPanel {
 		outputTextArea.setEditable(true);
 		outputTextArea.setText("Enter the text for the test.");
 		outputTextArea.selectAll();
-		if (mainArgs.length == 0)
+		if (mainArgs.length == 0) {
 			idTextField = new JTextField("Enter user id");
-		else {
+			Random random = new Random();
+			int low = 0;
+			int high = 5;
+			int r = random.nextInt(high - low) + low;
+			states = ArrayOfStates[r];
+		} else {
 			idTextField = new JTextField(mainArgs[0]);
 			if (mainArgs.length > 1)
 				states = mainArgs[1].split(" ");
+			else {
+				Random random = new Random();
+				int low = 0;
+				int high = 5;
+				int r = random.nextInt(high - low) + low;
+				states = ArrayOfStates[r];
+			}
 		}
 		idTextField.selectAll();
 		glassState = new JComboBox<String>(states);
@@ -249,7 +266,8 @@ public class MainWindow extends JPanel {
 								&& getDifference(line, timing.get(i)) <= 5499) {
 							correct++;
 							delay += (getDifference(line, timing.get(i)));
-							timings.remove((timing.get(i)));
+							timing.remove((timing.get(i)));
+							timings.put(line.contains("on"), timing);
 							break;
 						}
 					}
@@ -377,7 +395,7 @@ public class MainWindow extends JPanel {
 			}
 			try {
 				art = new ActionReciverThread(MainWindow.this,
-						idTextField.getText(),dateTime);
+						idTextField.getText(), dateTime);
 				art.start();
 			} catch (IOException e1) {
 				// TODO Auto-generated catch block
@@ -409,8 +427,9 @@ public class MainWindow extends JPanel {
 			c2.weighty = 0.5;
 			MainWindow.this.add(finish, c2);
 			MainWindow.this.add(restart, c2);
-			JFrame temp = (JFrame) SwingUtilities.getWindowAncestor(MainWindow.this);
-			temp.setTitle(temp.getTitle()+" -  "+selectedState);
+			JFrame temp = (JFrame) SwingUtilities
+					.getWindowAncestor(MainWindow.this);
+			temp.setTitle(temp.getTitle() + " -  " + selectedState);
 			MainWindow.this.refreshFrame(true);
 			inputTextArea.requestFocus();
 			// creates a new thread that waits for a specified
@@ -537,7 +556,7 @@ public class MainWindow extends JPanel {
 				recorder.finish();
 				Files.deleteIfExists(recorder.wavFile.toPath());
 				Files.deleteIfExists(file.getParentFile().toPath());
-				
+
 			}
 			final ProcessBuilder builder = new ProcessBuilder(command);
 			builder.start();
