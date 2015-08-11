@@ -49,7 +49,6 @@ public class ActionReciverThread extends Thread {
 			while (true) {
 				socket.receive(dgp);
 				message = new String(dgp.getData(), 0, dgp.getLength());
-				System.out.println(message);
 				switch (message) {
 					case "restart received" :
 						restartReceivedBoolean = true;
@@ -77,7 +76,6 @@ public class ActionReciverThread extends Thread {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (IOException e) {
-			System.out.println("here");
 			e.printStackTrace();
 		}
 	}

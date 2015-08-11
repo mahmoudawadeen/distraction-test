@@ -2,6 +2,7 @@ package distractionTypingTest;
 
 import java.io.File;
 import java.io.IOException;
+import java.sql.Time;
 
 import javax.sound.sampled.AudioFileFormat;
 import javax.sound.sampled.AudioFormat;
@@ -18,13 +19,15 @@ public class JavaSoundRecorder {
 	// path of the wav file
 	File wavFile;
 
+	Time recordingTime;
+
 	// format of audio file
 	AudioFileFormat.Type fileType = AudioFileFormat.Type.WAVE;
 
 	// the line from which audio data is captured
 	TargetDataLine line;
-	
-	public JavaSoundRecorder(String path){
+
+	public JavaSoundRecorder(String path) {
 		wavFile = new File(path);
 	}
 	/**
@@ -47,24 +50,20 @@ public class JavaSoundRecorder {
 	void start() {
 		try {
 			AudioFormat format = getAudioFormat();
-			DataLine.Info info = new DataLine.Info(TargetDataLine.class,
-					format);
+			DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
 
 			// checks if system supports the data line
 			if (!AudioSystem.isLineSupported(info)) {
-				System.out.println("Line not supported");
 				System.exit(0);
 			}
 			line = (TargetDataLine) AudioSystem.getLine(info);
 			line.open(format);
 			line.start(); // start capturing
 
-			System.out.println("Start capturing...");
 
 			AudioInputStream ais = new AudioInputStream(line);
 
-			System.out.println("Start recording...");
-
+			recordingTime = new Time(System.currentTimeMillis());
 			// start recording
 			AudioSystem.write(ais, fileType, wavFile);
 
@@ -81,32 +80,31 @@ public class JavaSoundRecorder {
 	void finish() {
 		line.stop();
 		line.close();
-		System.out.println("Finished");
 	}
 
 	/**
 	 * Entry to run the program
 	 */
-	  public static void main(String[] args) {
-//	        final JavaSoundRecorder recorder = new JavaSoundRecorder();
-//	 
-//	        // creates a new thread that waits for a specified
-//	        // of time before stopping
-//	        Thread stopper = new Thread(new Runnable() {
-//	            public void run() {
-//	                try {
-//	                    Thread.sleep(RECORD_TIME);
-//	                } catch (InterruptedException ex) {
-//	                    ex.printStackTrace();
-//	                }
-//	                recorder.finish();
-//	            }
-//	        });
-//	 
-//	        stopper.start();
-//	 
-//	        // start recording
-//	        recorder.start();
-	        
-	    }
+	public static void main(String[] args) {
+		// final JavaSoundRecorder recorder = new JavaSoundRecorder();
+		//
+		// // creates a new thread that waits for a specified
+		// // of time before stopping
+		// Thread stopper = new Thread(new Runnable() {
+		// public void run() {
+		// try {
+		// Thread.sleep(RECORD_TIME);
+		// } catch (InterruptedException ex) {
+		// ex.printStackTrace();
+		// }
+		// recorder.finish();
+		// }
+		// });
+		//
+		// stopper.start();
+		//
+		// // start recording
+		// recorder.start();
+
+	}
 }

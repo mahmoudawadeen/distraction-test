@@ -42,6 +42,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.DocumentFilter;
 
 import org.apache.commons.lang3.StringUtils;
 import org.joda.time.LocalDateTime;
@@ -65,9 +67,30 @@ public class MainWindow extends JPanel {
 
 	protected static String states[];
 	protected static String ArrayOfStates[][] = {
-			{"double", "colored", "fading"}, {"double", "fading", "colored"},
-			{"colored", "double", "fading"}, {"colored", "fading", "double"},
-			{"fading", "double", "colored"}, {"fading", "colored", "double"}};
+			{"double", "colored", "fading", "controlled"},
+			{"double", "colored", "controlled", "fading"},
+			{"double", "fading", "colored", "controlled"},
+			{"double", "fading", "controlled", "colored"},
+			{"double", "controlled", "colored", "fading"},
+			{"double", "controlled", "fading", "colored"},
+			{"colored", "double", "controlled", "fading"},
+			{"colored", "double", "fading", "controlled"},
+			{"colored", "fading", "controlled", "double"},
+			{"colored", "fading", "double", "controlled"},
+			{"colored", "controlled", "fading", "double"},
+			{"colored", "controlled", "double", "fading"},
+			{"fading", "double", "colored", "controlled"},
+			{"fading", "double", "controlled", "colored"},
+			{"fading", "colored", "double", "controlled"},
+			{"fading", "colored", "controlled", "double"},
+			{"fading", "controlled", "double", "colored"},
+			{"fading", "controlled", "colored", "double"},
+			{"controlled", "double", "fading", "colored"},
+			{"controlled", "double", "colored", "fading"},
+			{"controlled", "colored", "fading", "double"},
+			{"controlled", "colored", "double", "fading"},
+			{"controlled", "fading", "colored", "double"},
+			{"controlled", "fading", "double", "colored"}};
 
 	private boolean timerStarted;
 
@@ -86,7 +109,7 @@ public class MainWindow extends JPanel {
 	private boolean startSignalAck;
 	private String selectedState;
 
-	private boolean caps_glass;
+	private boolean caps_glass = true;
 	public long lastKeyTypedAt;
 	public boolean sleep;
 
@@ -96,6 +119,8 @@ public class MainWindow extends JPanel {
 	private static long delay;
 	private static int totalLogLines;
 	private static int totalGlassLogLines;
+	private static int droppedEvents;
+	private static int timedOutEvents;
 
 	private static JavaSoundRecorder recorder = null;
 
@@ -129,6 +154,15 @@ public class MainWindow extends JPanel {
 		inputTextArea.setLineWrap(true);
 		inputTextArea.setWrapStyleWord(true);
 		inputTextArea.addKeyListener(new textFieldKeyListener());
+		final AbstractDocument doc = (AbstractDocument) inputTextArea
+				.getDocument();
+		doc.setDocumentFilter(new DocumentFilter() {
+			@Override
+			public void remove(final FilterBypass fb, final int offset,
+					final int length) {
+
+			}
+		});
 		outputTextArea = new JTextArea(20, 20);
 		outputTextArea.setLineWrap(true);
 		outputTextArea.setWrapStyleWord(true);
@@ -149,7 +183,7 @@ public class MainWindow extends JPanel {
 			idTextField = new JTextField("Enter user id");
 			Random random = new Random();
 			int low = 0;
-			int high = 5;
+			int high = 23;
 			int r = random.nextInt(high - low) + low;
 			states = ArrayOfStates[r];
 		} else {
@@ -159,7 +193,7 @@ public class MainWindow extends JPanel {
 			else {
 				Random random = new Random();
 				int low = 0;
-				int high = 5;
+				int high = 23;
 				int r = random.nextInt(high - low) + low;
 				states = ArrayOfStates[r];
 			}
@@ -242,40 +276,76 @@ public class MainWindow extends JPanel {
 
 	public static void compareLogs() {
 		try {
-			HashMap<Boolean, ArrayList<String>> timings = new HashMap<>();
+			HashMap<Boolean, ArrayList<String>> timingsGlass = new HashMap<>();
+			HashMap<Boolean, ArrayList<String>> timingsLog = new HashMap<>();
+			timingsGlass.put(true, new ArrayList<String>());
+			timingsGlass.put(false, new ArrayList<String>());
 			if (file_glass.exists()) {
 				BufferedReader glassLog = new BufferedReader(new FileReader(
 						file_glass));
-				timings.put(true, new ArrayList<String>());
-				timings.put(false, new ArrayList<String>());
 				while (glassLog.ready()) {
 					String line = glassLog.readLine();
-					timings.get(line.contains("on")).add(line);
+					timingsGlass.get(line.contains("on")).add(line);
 					totalGlassLogLines++;
 				}
 				glassLog.close();
 			}
+			timingsLog.put(true, new ArrayList<String>());
+			timingsLog.put(false, new ArrayList<String>());
 			if (file.exists()) {
 				BufferedReader log = new BufferedReader(new FileReader(file));
 				while (log.ready()) {
 					String line = log.readLine();
-					ArrayList<String> timing = timings.get(line.contains("on"));
-					int size = timing.size();
-					for (int i = 0; i < size; i++) {
-						if (getDifference(line, timing.get(i)) >= 0
-								&& getDifference(line, timing.get(i)) <= 5499) {
-							correct++;
-							delay += (getDifference(line, timing.get(i)));
-							timing.remove((timing.get(i)));
-							timings.put(line.contains("on"), timing);
-							break;
-						}
-					}
+					timingsLog.get(line.contains("on")).add(line);
 					totalLogLines++;
 				}
 				log.close();
 			}
 
+			ArrayList<String> logTemp = timingsLog.get(true);
+			ArrayList<String> glassTemp = timingsGlass.get(true);
+			int k = 0;
+			while (k < 2) {
+				int sizeGlass = glassTemp.size();
+				int sizeLog = logTemp.size();
+				for (int i = 0; i < sizeGlass; i++) {
+					for (int j = 0; j < sizeLog; j++) {
+						long diff = getDifference(logTemp.get(j),
+								glassTemp.get(i));
+						if (diff > 0 && diff < 5499) {
+							correct++;
+							delay += diff;
+							glassTemp.remove(i);
+							logTemp.remove(j);
+							sizeGlass--;
+							sizeLog--;
+							i--;
+							j--;
+							break;
+						} else if (diff > 5499 && diff < 15000) {
+							timedOutEvents++;
+							glassTemp.remove(i);
+							logTemp.remove(j);
+							sizeGlass--;
+							sizeLog--;
+							i--;
+							j--;
+							break;
+						} else if (diff > 15000) {
+							droppedEvents++;
+							glassTemp.remove(i);
+							sizeGlass--;
+							i--;
+							break;
+						}
+
+					}
+				}
+				droppedEvents += glassTemp.size();
+				logTemp = timingsLog.get(false);
+				glassTemp = timingsGlass.get(false);
+				k++;
+			}
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -284,7 +354,6 @@ public class MainWindow extends JPanel {
 			e.printStackTrace();
 		}
 	}
-
 	class textFieldKeyListener implements KeyListener {
 		@Override
 		public void keyTyped(KeyEvent e) {
@@ -292,6 +361,7 @@ public class MainWindow extends JPanel {
 			if (!startSignalAck) {
 				sendMessage(selectedState);
 			}
+
 			if (e.getKeyChar() != KeyEvent.VK_ENTER) {
 				if (!timerStarted) {
 					timerStarted = true;
@@ -319,6 +389,9 @@ public class MainWindow extends JPanel {
 
 		@Override
 		public void keyPressed(KeyEvent e) {
+			if (e.getKeyCode() == KeyEvent.VK_CAPS_LOCK)
+				lastKeyTypedAt = System.nanoTime();
+
 		}
 
 		@Override
@@ -354,20 +427,19 @@ public class MainWindow extends JPanel {
 		@Override
 		public void run() {
 			if (!done && !restartBoolean) {
-				sendMessage(((Toolkit.getDefaultToolkit().getLockingKeyState(
-						KeyEvent.VK_CAPS_LOCK) != caps_glass)) ? "bad" : "good");
+				String mesg = ((Toolkit.getDefaultToolkit().getLockingKeyState(
+						KeyEvent.VK_CAPS_LOCK) != caps_glass)) ? "bad" : "good";
+				sendMessage(mesg);
 				double time = (System.nanoTime() - lastKeyTypedAt) / 1000000.0;
 				if (time > 2000 && !sleep) {
 					sendMessage("sleep");
 					sendMessage("sleep");
-					System.out.println("sleep");
 					sleep = true;
 				} else {
 					if (time <= 2000 && sleep) {
 						sleep = false;
 						sendMessage("wakeup");
 						sendMessage("wakeup");
-						System.out.println("wakeup");
 					}
 
 				}
@@ -480,6 +552,8 @@ public class MainWindow extends JPanel {
 				compareLogs();
 				String output = "*test results*"
 						+ newline
+						+ recorder.recordingTime.getTime()
+						+ newline
 						+ selectedState
 						+ newline
 						+ ((time == 0 || text.length() == 0) ? "zero" : ((text
@@ -497,7 +571,11 @@ public class MainWindow extends JPanel {
 						+ "the total number of correct caps lock hits is: "
 						+ correct + newline
 						+ "the total number of lines in log is: "
-						+ totalLogLines;
+						+ totalLogLines + newline
+						+ "the total number of dropped events is: "
+						+ droppedEvents + newline
+						+ "the total number of timed out events is: "
+						+ timedOutEvents;
 				outputTextArea.setText(output);
 				try {
 					FileWriter fw = new FileWriter(file_text);
@@ -539,24 +617,29 @@ public class MainWindow extends JPanel {
 			command.add("-jar");
 			command.add(currentJar.getPath());
 			command.add(id);
-			if (done) {
-				String newStates = "";
-				for (String state : states) {
-					if (!state.equals(selectedState))
-						newStates += state + " ";
-				}
-
-				command.add(newStates);
-			} else {
+			if (!done) {
 				if (mainArgs.length > 1)
 					command.add(mainArgs[1]);
+				else {
+					String oldStates = "";
+					for (String state : states) {
+						oldStates += state + " ";
+					}
+					command.add(oldStates);
+				}
 				Files.deleteIfExists(file.toPath());
 				Files.deleteIfExists(file_text.toPath());
 				art.deleteLog();
 				recorder.finish();
 				Files.deleteIfExists(recorder.wavFile.toPath());
 				Files.deleteIfExists(file.getParentFile().toPath());
-
+			} else {
+				String newStates = "";
+				for (String state : states) {
+					if (!state.equals(selectedState))
+						newStates += state + " ";
+				}
+				command.add(newStates);
 			}
 			final ProcessBuilder builder = new ProcessBuilder(command);
 			builder.start();
@@ -588,14 +671,6 @@ public class MainWindow extends JPanel {
 				createAndShowGUI();
 			}
 		});
-		// HashMap<Boolean, ArrayList<String>> test = new HashMap<>();
-		// test.put(true, new ArrayList<>());
-		// test.get(true).add("hey");
-		// test.get(true).add("hey2");
-		// test.get(true).add("hey3");
-		// for(String x : test.get(true)){
-		// test.get(true).remove(x);
-		// }
-		// System.out.println(test.get(true).size());
+
 	}
 }
